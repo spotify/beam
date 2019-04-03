@@ -51,7 +51,7 @@ public class DatasetSourceBatch implements DataSourceV2, ReadSupport {
   static final String DEFAULT_PARALLELISM = "default-parallelism";
   static final String PIPELINE_OPTIONS = "pipeline-options";
 
-  public DatasetSourceBatch() {}
+//  public DatasetSourceBatch() {}
 
   @SuppressWarnings("unchecked")
   @Override
