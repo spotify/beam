@@ -50,9 +50,9 @@ import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.transforms.PTransform;
 import org.apache.beam.sdk.transforms.ParDo;
 import org.apache.beam.sdk.transforms.Reshuffle;
-import org.apache.beam.sdk.transforms.SerializableFunction;
 import org.apache.beam.sdk.transforms.join.CoGbkResult;
 import org.apache.beam.sdk.transforms.join.CoGbkResultSchema;
+import org.apache.beam.sdk.transforms.join.UnionCoder;
 import org.apache.beam.sdk.values.KV;
 import org.apache.beam.sdk.values.PBegin;
 import org.apache.beam.sdk.values.PCollection;
@@ -65,36 +65,29 @@ import org.apache.beam.vendor.guava.v20_0.com.google.common.collect.Unmodifiable
 import org.apache.beam.vendor.guava.v20_0.com.google.common.primitives.UnsignedBytes;
 
 /**
- * {@code SortedBucketSource<FinalKeyT, FinalResultT>} takes multiple sorted-bucket sources written
- * with {@link SortedBucketSink}, reads key-values in matching buckets in a merge-sort style, and
- * expands resulting value groups, similar to that of a {@link
- * org.apache.beam.sdk.transforms.join.CoGbkResult}.
+ * {@code SortedBucketSource<FinalKeyT>} takes multiple sorted-bucket sources written with {@link
+ * SortedBucketSink}, reads key-values in matching buckets in a merge-sort style, and outputs
+ * resulting value groups as {@link org.apache.beam.sdk.transforms.join.CoGbkResult}.
  *
  * @param <FinalKeyT> the type of the result keys, sources can have different key types as long as
  *     they can all be decoded as this type
- * @param <FinalResultT> the type of the expanded result, after expanding resulting value groups.
  */
-public class SortedBucketSource<FinalKeyT, FinalResultT>
-    extends PTransform<PBegin, PCollection<KV<FinalKeyT, FinalResultT>>> {
+public class SortedBucketSource<FinalKeyT>
+    extends PTransform<PBegin, PCollection<KV<FinalKeyT, CoGbkResult>>> {
 
   private static final Comparator<byte[]> bytesComparator =
       UnsignedBytes.lexicographicalComparator();
 
   private final transient List<BucketedInput<?, ?>> sources;
   private final Class<FinalKeyT> finalKeyClass;
-  private final ToFinalResult<FinalResultT> toFinalResult;
 
-  public SortedBucketSource(
-      List<BucketedInput<?, ?>> sources,
-      Class<FinalKeyT> finalKeyClass,
-      ToFinalResult<FinalResultT> toFinalResult) {
+  public SortedBucketSource(List<BucketedInput<?, ?>> sources, Class<FinalKeyT> finalKeyClass) {
     this.sources = sources;
     this.finalKeyClass = finalKeyClass;
-    this.toFinalResult = toFinalResult;
   }
 
   @Override
-  public final PCollection<KV<FinalKeyT, FinalResultT>> expand(PBegin begin) {
+  public final PCollection<KV<FinalKeyT, CoGbkResult>> expand(PBegin begin) {
     Preconditions.checkState(sources.size() > 1, "Must have more than one source");
 
     BucketMetadata<?, ?> first = null;
@@ -143,30 +136,39 @@ public class SortedBucketSource<FinalKeyT, FinalResultT>
     @SuppressWarnings("deprecation")
     final Reshuffle.ViaRandomKey<KV<Integer, List<BucketedInput<?, ?>>>> reshuffle =
         Reshuffle.viaRandomKey();
+
+    final List<TupleTag<?>> tupleTags =
+        sources.stream().map(i -> i.tupleTag).collect(Collectors.toList());
+    final CoGbkResultSchema resultSchema = CoGbkResultSchema.of(tupleTags);
+    final CoGbkResult.CoGbkResultCoder resultCoder =
+        CoGbkResult.CoGbkResultCoder.of(
+            resultSchema,
+            UnionCoder.of(
+                sources.stream().map(BucketedInput::getCoder).collect(Collectors.toList())));
+
     return bucketedInputs
         .apply("ReshuffleKeys", reshuffle)
         .apply(
             "MergeBuckets",
-            ParDo.of(new MergeBuckets<>(leastNumBuckets, finalKeyCoder, toFinalResult)))
-        .setCoder(KvCoder.of(finalKeyCoder, toFinalResult.resultCoder()));
+            ParDo.of(new MergeBuckets<>(leastNumBuckets, finalKeyCoder, resultSchema)))
+        .setCoder(KvCoder.of(finalKeyCoder, resultCoder));
   }
 
   /** Merge key-value groups in matching buckets. */
-  static class MergeBuckets<FinalKeyT, FinalResultT>
-      extends DoFn<KV<Integer, List<BucketedInput<?, ?>>>, KV<FinalKeyT, FinalResultT>> {
+  static class MergeBuckets<FinalKeyT>
+      extends DoFn<KV<Integer, List<BucketedInput<?, ?>>>, KV<FinalKeyT, CoGbkResult>> {
 
     private static final Comparator<Map.Entry<TupleTag, KV<byte[], Iterator<?>>>> keyComparator =
         (o1, o2) -> bytesComparator.compare(o1.getValue().getKey(), o2.getValue().getKey());
 
     private final Integer leastNumBuckets;
     private final Coder<FinalKeyT> keyCoder;
-    private final ToFinalResult<FinalResultT> toResult;
+    private final CoGbkResultSchema resultSchema;
 
-    MergeBuckets(
-        int leastNumBuckets, Coder<FinalKeyT> keyCoder, ToFinalResult<FinalResultT> toResult) {
+    MergeBuckets(int leastNumBuckets, Coder<FinalKeyT> keyCoder, CoGbkResultSchema resultSchema) {
       this.leastNumBuckets = leastNumBuckets;
-      this.toResult = toResult;
       this.keyCoder = keyCoder;
+      this.resultSchema = resultSchema;
     }
 
     @ProcessElement
@@ -182,7 +184,7 @@ public class SortedBucketSource<FinalKeyT, FinalResultT>
               .toArray(KeyGroupIterator[]::new);
       final List<TupleTag<?>> tupleTags =
           sources.stream().map(i -> i.tupleTag).collect(Collectors.toList());
-      final CoGbkResultSchema schema = CoGbkResultSchema.of(tupleTags);
+      final CoGbkResultSchema resultSchema = CoGbkResultSchema.of(tupleTags);
 
       final Map<TupleTag, KV<byte[], Iterator<?>>> nextKeyGroups = new HashMap<>();
 
@@ -214,14 +216,14 @@ public class SortedBucketSource<FinalKeyT, FinalResultT>
         final Iterator<Map.Entry<TupleTag, KV<byte[], Iterator<?>>>> nextKeyGroupsIt =
             nextKeyGroups.entrySet().iterator();
         final List<Iterable<?>> valueMap = new ArrayList<>();
-        for (int i = 0; i < schema.size(); i++) {
+        for (int i = 0; i < resultSchema.size(); i++) {
           valueMap.add(new ArrayList<>());
         }
 
         while (nextKeyGroupsIt.hasNext()) {
           final Map.Entry<TupleTag, KV<byte[], Iterator<?>>> entry = nextKeyGroupsIt.next();
           if (keyComparator.compare(entry, minKeyEntry) == 0) {
-            int index = schema.getIndex(entry.getKey());
+            int index = resultSchema.getIndex(entry.getKey());
             @SuppressWarnings("unchecked")
             final List<Object> values = (List<Object>) valueMap.get(index);
             // TODO: this exhausts everything from the "lazy" iterator and can be expensive.
@@ -241,7 +243,7 @@ public class SortedBucketSource<FinalKeyT, FinalResultT>
         } catch (Exception e) {
           throw new RuntimeException("Could not decode key bytes for group", e);
         }
-        c.output(KV.of(groupKey, toResult.apply(new CoGbkResult(schema, valueMap))));
+        c.output(KV.of(groupKey, new CoGbkResult(resultSchema, valueMap)));
 
         if (completedSources == numSources) {
           break;
@@ -346,6 +348,10 @@ public class SortedBucketSource<FinalKeyT, FinalResultT>
       }
     }
 
+    Coder<V> getCoder() {
+      return fileOperations.getCoder();
+    }
+
     KeyGroupIterator<byte[], V> createIterator(int bucketId, int leastNumBuckets) {
       // Create one iterator per shard
       final BucketMetadata<K, V> metadata = getMetadata();
@@ -416,14 +422,5 @@ public class SortedBucketSource<FinalKeyT, FinalResultT>
           "BucketedInput[tupleTag=%s, filenamePrefix=%s, metadata=%s]",
           tupleTag.getId(), filenamePrefix, getMetadata());
     }
-  }
-
-  /**
-   * Function to expand a {@link CoGbkResult} into desired a result type, e.g. cartesian product for
-   * joins.
-   */
-  public abstract static class ToFinalResult<FinalResultT>
-      implements SerializableFunction<CoGbkResult, FinalResultT> {
-    public abstract Coder<FinalResultT> resultCoder();
   }
 }

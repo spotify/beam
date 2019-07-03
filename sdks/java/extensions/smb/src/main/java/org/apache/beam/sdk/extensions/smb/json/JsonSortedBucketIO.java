@@ -19,11 +19,9 @@ package org.apache.beam.sdk.extensions.smb.json;
 
 import com.google.api.services.bigquery.model.TableRow;
 import org.apache.beam.sdk.extensions.smb.SortedBucketIO;
-import org.apache.beam.sdk.extensions.smb.SortedBucketIO.ReadBuilder.JoinSource;
 import org.apache.beam.sdk.extensions.smb.SortedBucketSink;
 import org.apache.beam.sdk.extensions.smb.SortedBucketSource.BucketedInput;
 import org.apache.beam.sdk.io.fs.ResourceId;
-import org.apache.beam.sdk.io.gcp.bigquery.TableRowJsonCoder;
 import org.apache.beam.sdk.values.TupleTag;
 
 /** Abstracts SMB sources and sinks for JSON records. */
@@ -43,14 +41,16 @@ public class JsonSortedBucketIO {
       ResourceId tempDirectory,
       boolean allowNullKeys) {
     return SortedBucketIO.write(
-        bucketingMetadata, outputDirectory, ".json", tempDirectory, new JsonFileOperations(),
+        bucketingMetadata,
+        outputDirectory,
+        ".json",
+        tempDirectory,
+        new JsonFileOperations(),
         allowNullKeys);
   }
 
-  public static <KeyT> JoinSource<KeyT, TableRow> jsonSource(
+  public static <KeyT> BucketedInput<KeyT, TableRow> source(
       TupleTag<TableRow> tupleTag, ResourceId filenamePrefix) {
-    return new JoinSource<>(
-        new BucketedInput<>(tupleTag, filenamePrefix, ".json", new JsonFileOperations()),
-        TableRowJsonCoder.of());
+    return new BucketedInput<>(tupleTag, filenamePrefix, ".json", new JsonFileOperations());
   }
 }

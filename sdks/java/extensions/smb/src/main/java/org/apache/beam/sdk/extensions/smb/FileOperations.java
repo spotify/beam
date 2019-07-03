@@ -22,6 +22,7 @@ import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
+import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.io.FileSystems;
 import org.apache.beam.sdk.io.fs.ResourceId;
 
@@ -31,6 +32,8 @@ public abstract class FileOperations<V> implements Serializable {
   public abstract Reader<V> createReader();
 
   public abstract Writer<V> createWriter();
+
+  public abstract Coder<V> getCoder();
 
   public Iterator<V> iterator(ResourceId file) throws Exception {
     Reader<V> reader = createReader();

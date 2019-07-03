@@ -30,6 +30,9 @@ import org.apache.avro.Schema.Type;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.beam.sdk.coders.AvroCoder;
+import org.apache.beam.sdk.coders.IterableCoder;
+import org.apache.beam.sdk.coders.KvCoder;
+import org.apache.beam.sdk.coders.StringUtf8Coder;
 import org.apache.beam.sdk.extensions.smb.BucketMetadata.HashType;
 import org.apache.beam.sdk.extensions.smb.avro.AvroBucketMetadata;
 import org.apache.beam.sdk.extensions.smb.avro.AvroSortedBucketIO;
@@ -41,6 +44,9 @@ import org.apache.beam.sdk.testing.NeedsRunner;
 import org.apache.beam.sdk.testing.PAssert;
 import org.apache.beam.sdk.testing.TestPipeline;
 import org.apache.beam.sdk.transforms.Create;
+import org.apache.beam.sdk.transforms.DoFn;
+import org.apache.beam.sdk.transforms.ParDo;
+import org.apache.beam.sdk.transforms.join.CoGbkResult;
 import org.apache.beam.sdk.values.KV;
 import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.TupleTag;
@@ -54,11 +60,11 @@ public class MixedSourcesEndToEndTest implements Serializable {
   @Rule public final transient TestPipeline pipeline = TestPipeline.create();
   @Rule public final transient TestPipeline pipeline2 = TestPipeline.create();
   @Rule public final transient TestPipeline pipeline3 = TestPipeline.create();
-  @Rule public final TemporaryFolder source1Folder = new TemporaryFolder();
-  @Rule public final TemporaryFolder source2Folder = new TemporaryFolder();
+  @Rule public final transient TemporaryFolder source1Folder = new TemporaryFolder();
+  @Rule public final transient TemporaryFolder source2Folder = new TemporaryFolder();
 
-  @Rule public final TemporaryFolder tmpFolder = new TemporaryFolder();
-  @Rule public final TemporaryFolder tmpFolder2 = new TemporaryFolder();
+  @Rule public final transient TemporaryFolder tmpFolder = new TemporaryFolder();
+  @Rule public final transient TemporaryFolder tmpFolder2 = new TemporaryFolder();
 
   private static final Schema GR_USER_SCHEMA =
       Schema.createRecord(
@@ -145,21 +151,41 @@ public class MixedSourcesEndToEndTest implements Serializable {
 
     pipeline2.run().waitUntilFinish();
 
-    final SortedBucketSource<String, KV<Iterable<GenericRecord>, Iterable<TableRow>>>
-        sourceTransform =
-            SortedBucketIO.read(String.class)
-                .of(
-                    AvroSortedBucketIO.avroSource(
-                        new TupleTag<>(),
-                        GR_USER_SCHEMA,
-                        LocalResources.fromFile(source1Folder.getRoot(), true)))
-                .and(
-                    JsonSortedBucketIO.jsonSource(
-                        new TupleTag<>(), LocalResources.fromFile(source2Folder.getRoot(), true)))
-                .build();
+    TupleTag<GenericRecord> lhsTag = new TupleTag<>();
+    TupleTag<TableRow> rhsTag = new TupleTag<>();
+    final SortedBucketSource<String> sourceTransform =
+        SortedBucketIO.read(String.class)
+            .of(
+                AvroSortedBucketIO.source(
+                    lhsTag, GR_USER_SCHEMA, LocalResources.fromFile(source1Folder.getRoot(), true)))
+            .and(
+                JsonSortedBucketIO.source(
+                    rhsTag, LocalResources.fromFile(source2Folder.getRoot(), true)))
+            .build();
 
     final PCollection<KV<String, KV<Iterable<GenericRecord>, Iterable<TableRow>>>> joinedSources =
-        pipeline3.apply(sourceTransform);
+        pipeline3
+            .apply(sourceTransform)
+            .apply(
+                ParDo.of(
+                    new DoFn<
+                        KV<String, CoGbkResult>,
+                        KV<String, KV<Iterable<GenericRecord>, Iterable<TableRow>>>>() {
+                      @ProcessElement
+                      public void processElement(ProcessContext c) {
+                        final KV<String, CoGbkResult> kv = c.element();
+                        final CoGbkResult result = kv.getValue();
+                        c.output(
+                            KV.of(
+                                kv.getKey(), KV.of(result.getAll(lhsTag), result.getAll(rhsTag))));
+                      }
+                    }))
+            .setCoder(
+                KvCoder.of(
+                    StringUtf8Coder.of(),
+                    KvCoder.of(
+                        IterableCoder.of(AvroCoder.of(GR_USER_SCHEMA)),
+                        IterableCoder.of(TableRowJsonCoder.of()))));
 
     PAssert.that(joinedSources)
         .containsInAnyOrder(

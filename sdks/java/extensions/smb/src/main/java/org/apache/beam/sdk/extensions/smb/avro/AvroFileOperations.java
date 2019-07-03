@@ -35,6 +35,8 @@ import org.apache.avro.reflect.ReflectData;
 import org.apache.avro.reflect.ReflectDatumReader;
 import org.apache.avro.reflect.ReflectDatumWriter;
 import org.apache.avro.specific.SpecificRecordBase;
+import org.apache.beam.sdk.coders.AvroCoder;
+import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.extensions.smb.FileOperations;
 import org.apache.beam.sdk.io.SerializableAvroCodecFactory;
 import org.apache.beam.sdk.util.MimeTypes;
@@ -55,7 +57,7 @@ public class AvroFileOperations<ValueT> extends FileOperations<ValueT> {
     this.codec = new SerializableAvroCodecFactory(codec);
   }
 
-  public static <V extends GenericRecord> AvroFileOperations<V> of(Schema schema) {
+  public static AvroFileOperations<GenericRecord> of(Schema schema) {
     return new AvroFileOperations<>(null, schema, DEFAULT_CODEC);
   }
 
@@ -73,6 +75,14 @@ public class AvroFileOperations<ValueT> extends FileOperations<ValueT> {
   @Override
   public Writer<ValueT> createWriter() {
     return new AvroWriter<>(recordClass, schemaSupplier, codec);
+  }
+
+  @SuppressWarnings("unchecked")
+  @Override
+  public Coder<ValueT> getCoder() {
+    return recordClass == null
+        ? (AvroCoder<ValueT>) AvroCoder.of(getSchema())
+        : AvroCoder.of(recordClass);
   }
 
   Schema getSchema() {
