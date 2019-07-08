@@ -25,6 +25,8 @@ import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
 import java.nio.charset.Charset;
+import org.apache.beam.sdk.coders.Coder;
+import org.apache.beam.sdk.coders.StringUtf8Coder;
 import org.apache.beam.sdk.util.MimeTypes;
 
 class TestFileOperations extends FileOperations<String> {
@@ -81,5 +83,10 @@ class TestFileOperations extends FileOperations<String> {
         writer.close();
       }
     };
+  }
+
+  @Override
+  public Coder<String> getCoder() {
+    return StringUtf8Coder.of();
   }
 }
