@@ -19,7 +19,6 @@ package org.apache.beam.sdk.extensions.smb;
 
 import com.google.api.services.bigquery.model.TableRow;
 import com.google.protobuf.ByteString;
-
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collections;
@@ -225,9 +224,9 @@ public class MixedSourcesEndToEndTest {
     pipeline3.run();
   }
 
-  private static class ExpandResult extends DoFn<
-      KV<String, CoGbkResult>,
-      KV<String, KV<Iterable<GenericRecord>, Iterable<TableRow>>>> {
+  private static class ExpandResult
+      extends DoFn<
+          KV<String, CoGbkResult>, KV<String, KV<Iterable<GenericRecord>, Iterable<TableRow>>>> {
     private final TupleTag<GenericRecord> lhsTag;
     private final TupleTag<TableRow> rhsTag;
 
@@ -240,9 +239,7 @@ public class MixedSourcesEndToEndTest {
     public void processElement(ProcessContext c) {
       final KV<String, CoGbkResult> kv = c.element();
       final CoGbkResult result = kv.getValue();
-      c.output(
-          KV.of(
-              kv.getKey(), KV.of(result.getAll(lhsTag), result.getAll(rhsTag))));
+      c.output(KV.of(kv.getKey(), KV.of(result.getAll(lhsTag), result.getAll(rhsTag))));
     }
   }
 }

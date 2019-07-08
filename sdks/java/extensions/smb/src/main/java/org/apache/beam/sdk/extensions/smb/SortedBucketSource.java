@@ -138,7 +138,7 @@ public class SortedBucketSource<FinalKeyT>
         Reshuffle.viaRandomKey();
 
     final List<TupleTag<?>> tupleTags =
-        sources.stream().map(i -> i.tupleTag).collect(Collectors.toList());
+        sources.stream().map(BucketedInput::getTupleTag).collect(Collectors.toList());
     final CoGbkResultSchema resultSchema = CoGbkResultSchema.of(tupleTags);
     final CoGbkResult.CoGbkResultCoder resultCoder =
         CoGbkResult.CoGbkResultCoder.of(
@@ -148,14 +148,12 @@ public class SortedBucketSource<FinalKeyT>
 
     return bucketedInputs
         .apply("ReshuffleKeys", reshuffle)
-        .apply(
-            "MergeBuckets",
-            ParDo.of(new MergeBuckets<>(leastNumBuckets, finalKeyCoder, resultSchema)))
+        .apply("MergeBuckets", ParDo.of(new MergeBuckets<>(leastNumBuckets, finalKeyCoder)))
         .setCoder(KvCoder.of(finalKeyCoder, resultCoder));
   }
 
   /** Merge key-value groups in matching buckets. */
-  static class MergeBuckets<FinalKeyT>
+  private static class MergeBuckets<FinalKeyT>
       extends DoFn<KV<Integer, List<BucketedInput<?, ?>>>, KV<FinalKeyT, CoGbkResult>> {
 
     private static final Comparator<Map.Entry<TupleTag, KV<byte[], Iterator<?>>>> keyComparator =
@@ -163,12 +161,10 @@ public class SortedBucketSource<FinalKeyT>
 
     private final Integer leastNumBuckets;
     private final Coder<FinalKeyT> keyCoder;
-    private final CoGbkResultSchema resultSchema;
 
-    MergeBuckets(int leastNumBuckets, Coder<FinalKeyT> keyCoder, CoGbkResultSchema resultSchema) {
+    MergeBuckets(int leastNumBuckets, Coder<FinalKeyT> keyCoder) {
       this.leastNumBuckets = leastNumBuckets;
       this.keyCoder = keyCoder;
-      this.resultSchema = resultSchema;
     }
 
     @ProcessElement
@@ -183,7 +179,7 @@ public class SortedBucketSource<FinalKeyT>
               .map(i -> i.createIterator(bucketId, leastNumBuckets))
               .toArray(KeyGroupIterator[]::new);
       final List<TupleTag<?>> tupleTags =
-          sources.stream().map(i -> i.tupleTag).collect(Collectors.toList());
+          sources.stream().map(BucketedInput::getTupleTag).collect(Collectors.toList());
       final CoGbkResultSchema resultSchema = CoGbkResultSchema.of(tupleTags);
 
       final Map<TupleTag, KV<byte[], Iterator<?>>> nextKeyGroups = new HashMap<>();
@@ -256,10 +252,10 @@ public class SortedBucketSource<FinalKeyT>
    * Abstracts a potentially heterogeneous list of sorted-bucket sources of {@link BucketedInput}s,
    * similar to {@link org.apache.beam.sdk.transforms.join.CoGroupByKey}.
    */
-  static class BucketedInputs implements PInput {
-    private transient Pipeline pipeline;
-    private List<BucketedInput<?, ?>> sources;
-    private Integer numBuckets;
+  private static class BucketedInputs implements PInput {
+    private final transient Pipeline pipeline;
+    private final List<BucketedInput<?, ?>> sources;
+    private final Integer numBuckets;
 
     private BucketedInputs(
         Pipeline pipeline, Integer numBuckets, List<BucketedInput<?, ?>> sources) {
@@ -302,13 +298,13 @@ public class SortedBucketSource<FinalKeyT>
    * @param <V> the type of the values in a bucket
    */
   public static class BucketedInput<K, V> {
-    final TupleTag<V> tupleTag;
-    final ResourceId filenamePrefix;
-    final String filenameSuffix;
-    final FileOperations<V> fileOperations;
+    private final TupleTag<V> tupleTag;
+    private final ResourceId filenamePrefix;
+    private final String filenameSuffix;
+    private final FileOperations<V> fileOperations;
 
-    transient FileAssignment fileAssignment;
-    transient BucketMetadata<K, V> metadata;
+    private final transient FileAssignment fileAssignment;
+    private transient BucketMetadata<K, V> metadata;
 
     public BucketedInput(
         TupleTag<V> tupleTag,
@@ -323,7 +319,7 @@ public class SortedBucketSource<FinalKeyT>
       this.fileAssignment = new FileAssignment(filenamePrefix, filenameSuffix);
     }
 
-    BucketedInput(
+    private BucketedInput(
         TupleTag<V> tupleTag,
         ResourceId filenamePrefix,
         String filenameSuffix,
@@ -333,7 +329,11 @@ public class SortedBucketSource<FinalKeyT>
       this.metadata = metadata;
     }
 
-    BucketMetadata<K, V> getMetadata() {
+    public TupleTag<V> getTupleTag() {
+      return tupleTag;
+    }
+
+    public BucketMetadata<K, V> getMetadata() {
       if (metadata != null) {
         return metadata;
       } else {
@@ -348,11 +348,11 @@ public class SortedBucketSource<FinalKeyT>
       }
     }
 
-    Coder<V> getCoder() {
+    public Coder<V> getCoder() {
       return fileOperations.getCoder();
     }
 
-    KeyGroupIterator<byte[], V> createIterator(int bucketId, int leastNumBuckets) {
+    private KeyGroupIterator<byte[], V> createIterator(int bucketId, int leastNumBuckets) {
       // Create one iterator per shard
       final BucketMetadata<K, V> metadata = getMetadata();
 
@@ -384,7 +384,14 @@ public class SortedBucketSource<FinalKeyT>
       return new KeyGroupIterator<>(iterator, getMetadata()::getKeyBytes, bytesComparator);
     }
 
-    static class BucketedInputCoder<K, V> extends AtomicCoder<BucketedInput<K, V>> {
+    @Override
+    public String toString() {
+      return String.format(
+          "BucketedInput[tupleTag=%s, filenamePrefix=%s, metadata=%s]",
+          tupleTag.getId(), filenamePrefix, getMetadata());
+    }
+
+    private static class BucketedInputCoder<K, V> extends AtomicCoder<BucketedInput<K, V>> {
       private static SerializableCoder<TupleTag> tupleTagCoder =
           SerializableCoder.of(TupleTag.class);
       private static ResourceIdCoder resourceIdCoder = ResourceIdCoder.of();
@@ -414,13 +421,6 @@ public class SortedBucketSource<FinalKeyT>
         return new BucketedInput<>(
             tupleTag, filenamePrefix, filenameSuffix, fileOperations, metadata);
       }
-    }
-
-    @Override
-    public String toString() {
-      return String.format(
-          "BucketedInput[tupleTag=%s, filenamePrefix=%s, metadata=%s]",
-          tupleTag.getId(), filenamePrefix, getMetadata());
     }
   }
 }
