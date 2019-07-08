@@ -29,13 +29,9 @@ import java.util.Set;
 import java.util.function.ToIntFunction;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import org.apache.beam.sdk.coders.Coder;
-import org.apache.beam.sdk.coders.KvCoder;
-import org.apache.beam.sdk.coders.ListCoder;
-import org.apache.beam.sdk.coders.StringUtf8Coder;
+import java.util.stream.StreamSupport;
 import org.apache.beam.sdk.extensions.smb.FileOperations.Writer;
 import org.apache.beam.sdk.extensions.smb.SMBFilenamePolicy.FileAssignment;
-import org.apache.beam.sdk.extensions.smb.SortedBucketSource.ToFinalResult;
 import org.apache.beam.sdk.io.FileSystems;
 import org.apache.beam.sdk.testing.NeedsRunner;
 import org.apache.beam.sdk.testing.PAssert;
@@ -186,8 +182,8 @@ public class SortedBucketSourceTest {
             new BucketedInput<>(lhsTag, fromFolder(lhsFolder), ".txt", fileOperations),
             new BucketedInput<>(rhsTag, fromFolder(rhsFolder), ".txt", fileOperations));
 
-    PCollection<KV<String, KV<List<String>, List<String>>>> output =
-        pipeline.apply(new SortedBucketSource<>(inputs, String.class, new ToLists(lhsTag, rhsTag)));
+    PCollection<KV<String, CoGbkResult>> output =
+        pipeline.apply(new SortedBucketSource<>(inputs, String.class));
 
     // CoGroup by key inputs as expected result
     final Map<String, List<String>> lhs = groupByKey(lhsInput);
@@ -202,36 +198,23 @@ public class SortedBucketSourceTest {
     PAssert.thatMap(output)
         .satisfies(
             m -> {
-              Assert.assertEquals(expected, m);
+              Map<String, KV<List<String>, List<String>>> actual = new HashMap<>();
+              for (Map.Entry<String, CoGbkResult> kv : m.entrySet()) {
+                List<String> l =
+                    StreamSupport.stream(kv.getValue().getAll(lhsTag).spliterator(), false)
+                        .sorted()
+                        .collect(Collectors.toList());
+                List<String> r =
+                    StreamSupport.stream(kv.getValue().getAll(rhsTag).spliterator(), false)
+                        .sorted()
+                        .collect(Collectors.toList());
+                actual.put(kv.getKey(), KV.of(l, r));
+              }
+              Assert.assertEquals(expected, actual);
               return null;
             });
 
     pipeline.run();
-  }
-
-  private static class ToLists extends ToFinalResult<KV<List<String>, List<String>>> {
-    final TupleTag<String> lhsTag;
-    final TupleTag<String> rhsTag;
-
-    private ToLists(TupleTag<String> lhsTag, TupleTag<String> rhsTag) {
-      this.lhsTag = lhsTag;
-      this.rhsTag = rhsTag;
-    }
-
-    @Override
-    public KV<List<String>, List<String>> apply(CoGbkResult input) {
-      // Sort values for easy equality check
-      List<String> lhs = Lists.newArrayList(input.getAll(lhsTag));
-      List<String> rhs = Lists.newArrayList(input.getAll(rhsTag));
-      lhs.sort(String::compareTo);
-      rhs.sort(String::compareTo);
-      return KV.of(lhs, rhs);
-    }
-
-    @Override
-    public Coder<KV<List<String>, List<String>>> resultCoder() {
-      return KvCoder.of(ListCoder.of(StringUtf8Coder.of()), ListCoder.of(StringUtf8Coder.of()));
-    }
   }
 
   private static void write(
