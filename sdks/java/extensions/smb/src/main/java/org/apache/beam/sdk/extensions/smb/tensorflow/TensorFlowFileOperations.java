@@ -19,6 +19,8 @@ package org.apache.beam.sdk.extensions.smb.tensorflow;
 
 import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
+import org.apache.beam.sdk.coders.Coder;
+import org.apache.beam.sdk.extensions.protobuf.ProtoCoder;
 import org.apache.beam.sdk.extensions.smb.FileOperations;
 import org.apache.beam.sdk.io.TFRecordIO;
 import org.apache.beam.sdk.util.MimeTypes;
@@ -38,6 +40,11 @@ public class TensorFlowFileOperations extends FileOperations<Example> {
   @Override
   public Writer<Example> createWriter() {
     return new TfWriter();
+  }
+
+  @Override
+  public Coder<Example> getCoder() {
+    return ProtoCoder.of(Example.class);
   }
 
   ////////////////////////////////////////

@@ -17,15 +17,8 @@
  */
 package org.apache.beam.sdk.extensions.smb;
 
-import org.apache.beam.sdk.coders.Coder;
-import org.apache.beam.sdk.coders.IterableCoder;
-import org.apache.beam.sdk.coders.KvCoder;
 import org.apache.beam.sdk.extensions.smb.SortedBucketSource.BucketedInput;
-import org.apache.beam.sdk.extensions.smb.SortedBucketSource.ToFinalResult;
 import org.apache.beam.sdk.io.fs.ResourceId;
-import org.apache.beam.sdk.transforms.join.CoGbkResult;
-import org.apache.beam.sdk.values.KV;
-import org.apache.beam.sdk.values.TupleTag;
 import org.apache.beam.vendor.guava.v20_0.com.google.common.collect.ImmutableList;
 
 /**
@@ -41,35 +34,6 @@ public class SortedBucketIO {
     return new ReadBuilder<>(keyClass);
   }
 
-  /** Transforms a two-way {@link CoGbkResult} into a typed {@link KV}. */
-  static class CoGbkResult2<V1, V2> extends ToFinalResult<KV<Iterable<V1>, Iterable<V2>>> {
-    private final TupleTag<V1> lhsTupleTag;
-    private final TupleTag<V2> rhsTupleTag;
-    private final Coder<V1> lhsCoder; // TODO: can we get these from Coder registry?
-    private final Coder<V2> rhsCoder;
-
-    CoGbkResult2(
-        TupleTag<V1> lhsTupleTag,
-        TupleTag<V2> rhsTupleTag,
-        Coder<V1> lhsCoder,
-        Coder<V2> rhsCoder) {
-      this.lhsTupleTag = lhsTupleTag;
-      this.rhsTupleTag = rhsTupleTag;
-      this.lhsCoder = lhsCoder;
-      this.rhsCoder = rhsCoder;
-    }
-
-    @Override
-    public KV<Iterable<V1>, Iterable<V2>> apply(CoGbkResult input) {
-      return KV.of(input.getAll(lhsTupleTag), input.getAll(rhsTupleTag));
-    }
-
-    @Override
-    public Coder<KV<Iterable<V1>, Iterable<V2>>> resultCoder() {
-      return KvCoder.of(IterableCoder.of(lhsCoder), IterableCoder.of(rhsCoder));
-    }
-  }
-
   /**
    * Builder for a typed two-way sorted-bucket source.
    *
@@ -79,55 +43,34 @@ public class SortedBucketIO {
    */
   public static class ReadBuilder<K, V1, V2> {
     private Class<K> keyClass;
-    private JoinSource<K, V1> lhs;
-    private JoinSource<K, V2> rhs;
-
-    /**
-     * Abstracts a typed source in a sorted-bucket read.
-     *
-     * @param <K> the type of the keys
-     * @param <V> the type of the values
-     */
-    public static class JoinSource<K, V> {
-      private final BucketedInput<K, V> bucketedInput;
-      private final Coder<V> valueCoder;
-
-      public JoinSource(BucketedInput<K, V> bucketedInput, Coder<V> valueCoder) {
-        this.bucketedInput = bucketedInput;
-        this.valueCoder = valueCoder;
-      }
-    }
+    private BucketedInput<K, V1> lhs;
+    private BucketedInput<K, V2> rhs;
 
     private ReadBuilder(Class<K> keyClass) {
       this.keyClass = keyClass;
     }
 
-    private ReadBuilder(Class<K> keyClass, JoinSource<K, V1> lhs) {
+    private ReadBuilder(Class<K> keyClass, BucketedInput<K, V1> lhs) {
       this(keyClass);
       this.lhs = lhs;
     }
 
-    public <V> ReadBuilder<K, V, ?> of(JoinSource<K, V> lhs) {
+    public <V> ReadBuilder<K, V, ?> of(BucketedInput<K, V> lhs) {
       final ReadBuilder<K, V, ?> builderCopy = new ReadBuilder<>(keyClass);
 
       builderCopy.lhs = lhs;
       return builderCopy;
     }
 
-    public <W> ReadBuilder<K, V1, W> and(JoinSource<K, W> rhs) {
+    public <W> ReadBuilder<K, V1, W> and(BucketedInput<K, W> rhs) {
       final ReadBuilder<K, V1, W> builderCopy = new ReadBuilder<>(keyClass, lhs);
 
       builderCopy.rhs = rhs;
       return builderCopy;
     }
 
-    public SortedBucketSource<K, KV<Iterable<V1>, Iterable<V2>>> build() {
-      return new SortedBucketSource<>(
-          ImmutableList.of(lhs.bucketedInput, rhs.bucketedInput),
-          keyClass,
-          new CoGbkResult2<>(
-              lhs.bucketedInput.tupleTag, rhs.bucketedInput.tupleTag,
-              lhs.valueCoder, rhs.valueCoder));
+    public SortedBucketSource<K> build() {
+      return new SortedBucketSource<>(ImmutableList.of(lhs, rhs), keyClass);
     }
   }
 

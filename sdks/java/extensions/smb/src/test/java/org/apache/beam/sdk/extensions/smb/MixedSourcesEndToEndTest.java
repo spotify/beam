@@ -19,7 +19,6 @@ package org.apache.beam.sdk.extensions.smb;
 
 import com.google.api.services.bigquery.model.TableRow;
 import com.google.protobuf.ByteString;
-import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collections;
@@ -30,6 +29,9 @@ import org.apache.avro.Schema.Type;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.beam.sdk.coders.AvroCoder;
+import org.apache.beam.sdk.coders.IterableCoder;
+import org.apache.beam.sdk.coders.KvCoder;
+import org.apache.beam.sdk.coders.StringUtf8Coder;
 import org.apache.beam.sdk.extensions.smb.BucketMetadata.HashType;
 import org.apache.beam.sdk.extensions.smb.avro.AvroBucketMetadata;
 import org.apache.beam.sdk.extensions.smb.avro.AvroSortedBucketIO;
@@ -41,6 +43,9 @@ import org.apache.beam.sdk.testing.NeedsRunner;
 import org.apache.beam.sdk.testing.PAssert;
 import org.apache.beam.sdk.testing.TestPipeline;
 import org.apache.beam.sdk.transforms.Create;
+import org.apache.beam.sdk.transforms.DoFn;
+import org.apache.beam.sdk.transforms.ParDo;
+import org.apache.beam.sdk.transforms.join.CoGbkResult;
 import org.apache.beam.sdk.values.KV;
 import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.TupleTag;
@@ -50,14 +55,14 @@ import org.junit.experimental.categories.Category;
 import org.junit.rules.TemporaryFolder;
 
 /** E2E test for heterogeneously-typed SMB join. */
-public class MixedSourcesEndToEndTest implements Serializable {
-  @Rule public final transient TestPipeline pipeline = TestPipeline.create();
-  @Rule public final transient TestPipeline pipeline2 = TestPipeline.create();
-  @Rule public final transient TestPipeline pipeline3 = TestPipeline.create();
-  @Rule public final TemporaryFolder source1Folder = new TemporaryFolder();
-  @Rule public final TemporaryFolder source2Folder = new TemporaryFolder();
+public class MixedSourcesEndToEndTest {
+  @Rule public final TestPipeline pipeline1 = TestPipeline.create();
+  @Rule public final TestPipeline pipeline2 = TestPipeline.create();
+  @Rule public final TestPipeline pipeline3 = TestPipeline.create();
+  @Rule public final TemporaryFolder sourceFolder1 = new TemporaryFolder();
+  @Rule public final TemporaryFolder sourceFolder2 = new TemporaryFolder();
 
-  @Rule public final TemporaryFolder tmpFolder = new TemporaryFolder();
+  @Rule public final TemporaryFolder tmpFolder1 = new TemporaryFolder();
   @Rule public final TemporaryFolder tmpFolder2 = new TemporaryFolder();
 
   private static final Schema GR_USER_SCHEMA =
@@ -97,7 +102,7 @@ public class MixedSourcesEndToEndTest implements Serializable {
     final AvroBucketMetadata<ByteBuffer, GenericRecord> avroMetadata =
         new AvroBucketMetadata<>(4, 3, ByteBuffer.class, HashType.MURMUR3_32, "name");
 
-    pipeline
+    pipeline1
         .apply(
             Create.of(
                     createUserGR("a", 1),
@@ -113,12 +118,12 @@ public class MixedSourcesEndToEndTest implements Serializable {
         .apply(
             AvroSortedBucketIO.sink(
                 avroMetadata,
-                LocalResources.fromFile(source1Folder.getRoot(), true),
-                LocalResources.fromFile(tmpFolder.getRoot(), true),
+                LocalResources.fromFile(sourceFolder1.getRoot(), true),
+                LocalResources.fromFile(tmpFolder1.getRoot(), true),
                 GR_USER_SCHEMA,
                 true));
 
-    pipeline.run().waitUntilFinish();
+    pipeline1.run().waitUntilFinish();
 
     final JsonBucketMetadata<String> jsonMetadata =
         new JsonBucketMetadata<>(8, 4, String.class, HashType.MURMUR3_32, "name");
@@ -139,27 +144,34 @@ public class MixedSourcesEndToEndTest implements Serializable {
         .apply(
             JsonSortedBucketIO.sink(
                 jsonMetadata,
-                LocalResources.fromFile(source2Folder.getRoot(), true),
+                LocalResources.fromFile(sourceFolder2.getRoot(), true),
                 LocalResources.fromFile(tmpFolder2.getRoot(), true),
                 true));
 
     pipeline2.run().waitUntilFinish();
 
-    final SortedBucketSource<String, KV<Iterable<GenericRecord>, Iterable<TableRow>>>
-        sourceTransform =
-            SortedBucketIO.read(String.class)
-                .of(
-                    AvroSortedBucketIO.avroSource(
-                        new TupleTag<>(),
-                        GR_USER_SCHEMA,
-                        LocalResources.fromFile(source1Folder.getRoot(), true)))
-                .and(
-                    JsonSortedBucketIO.jsonSource(
-                        new TupleTag<>(), LocalResources.fromFile(source2Folder.getRoot(), true)))
-                .build();
+    TupleTag<GenericRecord> lhsTag = new TupleTag<>();
+    TupleTag<TableRow> rhsTag = new TupleTag<>();
+    final SortedBucketSource<String> sourceTransform =
+        SortedBucketIO.read(String.class)
+            .of(
+                AvroSortedBucketIO.source(
+                    lhsTag, GR_USER_SCHEMA, LocalResources.fromFile(sourceFolder1.getRoot(), true)))
+            .and(
+                JsonSortedBucketIO.source(
+                    rhsTag, LocalResources.fromFile(sourceFolder2.getRoot(), true)))
+            .build();
 
     final PCollection<KV<String, KV<Iterable<GenericRecord>, Iterable<TableRow>>>> joinedSources =
-        pipeline3.apply(sourceTransform);
+        pipeline3
+            .apply(sourceTransform)
+            .apply(ParDo.of(new ExpandResult(lhsTag, rhsTag)))
+            .setCoder(
+                KvCoder.of(
+                    StringUtf8Coder.of(),
+                    KvCoder.of(
+                        IterableCoder.of(AvroCoder.of(GR_USER_SCHEMA)),
+                        IterableCoder.of(TableRowJsonCoder.of()))));
 
     PAssert.that(joinedSources)
         .containsInAnyOrder(
@@ -210,5 +222,24 @@ public class MixedSourcesEndToEndTest implements Serializable {
                         Collections.singletonList(createUserJson("i", "MX"))))));
 
     pipeline3.run();
+  }
+
+  private static class ExpandResult
+      extends DoFn<
+          KV<String, CoGbkResult>, KV<String, KV<Iterable<GenericRecord>, Iterable<TableRow>>>> {
+    private final TupleTag<GenericRecord> lhsTag;
+    private final TupleTag<TableRow> rhsTag;
+
+    private ExpandResult(TupleTag<GenericRecord> lhsTag, TupleTag<TableRow> rhsTag) {
+      this.lhsTag = lhsTag;
+      this.rhsTag = rhsTag;
+    }
+
+    @ProcessElement
+    public void processElement(ProcessContext c) {
+      final KV<String, CoGbkResult> kv = c.element();
+      final CoGbkResult result = kv.getValue();
+      c.output(KV.of(kv.getKey(), KV.of(result.getAll(lhsTag), result.getAll(rhsTag))));
+    }
   }
 }
