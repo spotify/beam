@@ -36,6 +36,10 @@ public abstract class FileOperations<V> implements Serializable {
     this.compression = compression;
   }
 
+  public Compression getCompression() {
+    return compression;
+  }
+
   public abstract Reader<V> createReader();
 
   public abstract Writer<V> createWriter();
