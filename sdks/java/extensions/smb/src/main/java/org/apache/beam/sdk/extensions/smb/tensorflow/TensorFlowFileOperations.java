@@ -17,14 +17,15 @@
  */
 package org.apache.beam.sdk.extensions.smb.tensorflow;
 
+import java.io.IOException;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.extensions.protobuf.ProtoCoder;
 import org.apache.beam.sdk.extensions.smb.FileOperations;
 import org.apache.beam.sdk.io.Compression;
+import org.apache.beam.sdk.io.FileIO;
 import org.apache.beam.sdk.io.TFRecordIO;
-import org.apache.beam.sdk.util.MimeTypes;
 import org.tensorflow.example.Example;
 
 /**
@@ -43,8 +44,25 @@ public class TensorFlowFileOperations extends FileOperations<Example> {
   }
 
   @Override
-  public Writer<Example> createWriter() {
-    return new TfWriter();
+  public FileIO.Sink<Example> createSink() {
+    return new FileIO.Sink<Example>() {
+      private final TFRecordIO.Sink sink = TFRecordIO.sink();
+
+      @Override
+      public void open(WritableByteChannel channel) throws IOException {
+        sink.open(channel);
+      }
+
+      @Override
+      public void write(Example element) throws IOException {
+        sink.write(element.toByteArray());
+      }
+
+      @Override
+      public void flush() throws IOException {
+        sink.flush();
+      }
+    };
   }
 
   @Override
@@ -75,37 +93,6 @@ public class TensorFlowFileOperations extends FileOperations<Example> {
 
     @Override
     public void finishRead() throws Exception {
-      channel.close();
-    }
-  }
-
-  ////////////////////////////////////////
-  // Writer
-  ////////////////////////////////////////
-
-  private static class TfWriter extends Writer<Example> {
-
-    private transient TFRecordIO.TFRecordCodec codec;
-    private transient WritableByteChannel channel;
-
-    @Override
-    public String getMimeType() {
-      return MimeTypes.BINARY;
-    }
-
-    @Override
-    public void prepareWrite(WritableByteChannel channel) throws Exception {
-      this.codec = new TFRecordIO.TFRecordCodec();
-      this.channel = channel;
-    }
-
-    @Override
-    public void write(Example value) throws Exception {
-      codec.write(channel, value.toByteArray());
-    }
-
-    @Override
-    public void close() throws Exception {
       channel.close();
     }
   }

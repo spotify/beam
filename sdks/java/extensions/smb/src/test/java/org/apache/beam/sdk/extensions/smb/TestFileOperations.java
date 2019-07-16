@@ -18,17 +18,15 @@
 package org.apache.beam.sdk.extensions.smb;
 
 import java.io.BufferedReader;
-import java.io.BufferedWriter;
 import java.io.InputStreamReader;
-import java.io.OutputStreamWriter;
 import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
-import java.nio.channels.WritableByteChannel;
 import java.nio.charset.Charset;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.coders.StringUtf8Coder;
 import org.apache.beam.sdk.io.Compression;
-import org.apache.beam.sdk.util.MimeTypes;
+import org.apache.beam.sdk.io.FileIO;
+import org.apache.beam.sdk.io.TextIO;
 
 class TestFileOperations extends FileOperations<String> {
 
@@ -61,34 +59,8 @@ class TestFileOperations extends FileOperations<String> {
   }
 
   @Override
-  public Writer<String> createWriter() {
-    return new Writer<String>() {
-      private transient BufferedWriter writer;
-
-      @Override
-      public String getMimeType() {
-        return MimeTypes.TEXT;
-      }
-
-      @Override
-      public void prepareWrite(WritableByteChannel channel) throws Exception {
-        writer =
-            new BufferedWriter(
-                new OutputStreamWriter(
-                    Channels.newOutputStream(channel), Charset.defaultCharset()));
-      }
-
-      @Override
-      public void write(String value) throws Exception {
-        writer.write(value);
-        writer.newLine();
-      }
-
-      @Override
-      public void close() throws Exception {
-        writer.close();
-      }
-    };
+  public FileIO.Sink<String> createSink() {
+    return TextIO.sink();
   }
 
   @Override
