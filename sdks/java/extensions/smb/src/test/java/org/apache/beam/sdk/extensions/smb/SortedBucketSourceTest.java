@@ -32,6 +32,7 @@ import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 import org.apache.beam.sdk.extensions.smb.FileOperations.Writer;
 import org.apache.beam.sdk.extensions.smb.SMBFilenamePolicy.FileAssignment;
+import org.apache.beam.sdk.io.Compression;
 import org.apache.beam.sdk.io.FileSystems;
 import org.apache.beam.sdk.testing.NeedsRunner;
 import org.apache.beam.sdk.testing.PAssert;
@@ -233,7 +234,8 @@ public class SortedBucketSourceTest {
       Writer<String> writer = new TestFileOperations().createWriter();
       writer.prepareWrite(
           FileSystems.create(
-              fileAssignment.forBucket(entry.getKey(), metadata), writer.getMimeType()));
+              fileAssignment.forBucket(entry.getKey(), metadata, Compression.UNCOMPRESSED),
+              writer.getMimeType()));
       for (String s : entry.getValue()) {
         writer.write(s);
       }
