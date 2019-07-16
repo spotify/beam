@@ -365,7 +365,9 @@ public class SortedBucketSource<FinalKeyT>
       // which buckets should be merged together for the join.
       for (int i = bucketId; i < numBucketsInSource; i += leastNumBuckets) {
         for (int j = 0; j < numShards; j++) {
-          final ResourceId file = fileAssignment.forBucket(BucketShardId.of(i, j), metadata);
+          final ResourceId file =
+              fileAssignment.forBucket(
+                  BucketShardId.of(i, j), metadata, fileOperations.getCompression());
           try {
             iterators.add(fileOperations.iterator(file));
           } catch (Exception e) {

@@ -19,6 +19,7 @@ package org.apache.beam.sdk.extensions.smb;
 
 import java.io.Serializable;
 import java.util.concurrent.atomic.AtomicLong;
+import org.apache.beam.sdk.io.Compression;
 import org.apache.beam.sdk.io.fs.ResolveOptions.StandardResolveOptions;
 import org.apache.beam.sdk.io.fs.ResourceId;
 import org.apache.beam.vendor.guava.v20_0.com.google.common.annotations.VisibleForTesting;
@@ -73,7 +74,7 @@ public final class SMBFilenamePolicy implements Serializable {
 
     private static final String NULL_KEYS_BUCKET_TEMPLATE = "null-keys";
     private static final String NUMERIC_BUCKET_TEMPLATE = "%05d-of-%05d";
-    private static final String BUCKET_SHARD_TEMPLATE = "bucket-%s-shard-%05d-of-%05d%s";
+    private static final String BUCKET_SHARD_TEMPLATE = "bucket-%s-shard-%05d-of-%05d%s%s";
     private static final String METADATA_FILENAME = "metadata.json";
     private static final DateTimeFormatter TEMPFILE_TIMESTAMP =
         DateTimeFormat.forPattern("yyyy-MM-dd_HH-mm-ss-");
@@ -92,7 +93,7 @@ public final class SMBFilenamePolicy implements Serializable {
       this(filenamePrefix, filenameSuffix, false);
     }
 
-    ResourceId forBucket(BucketShardId id, BucketMetadata<?, ?> metadata) {
+    ResourceId forBucket(BucketShardId id, BucketMetadata<?, ?> metadata, Compression compression) {
       Preconditions.checkArgument(
           id.getBucketId() < metadata.getNumBuckets(),
           "Can't assign a filename for bucketShardId %s: max number of buckets is %s",
@@ -117,7 +118,8 @@ public final class SMBFilenamePolicy implements Serializable {
               bucketName,
               id.getShardId(),
               metadata.getNumShards(),
-              filenameSuffix);
+              filenameSuffix,
+              compression.getSuggestedSuffix());
       return filenamePrefix.resolve(timestamp + filename, StandardResolveOptions.RESOLVE_FILE);
     }
 

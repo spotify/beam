@@ -19,6 +19,7 @@ package org.apache.beam.sdk.extensions.smb;
 
 import org.apache.beam.sdk.extensions.smb.BucketMetadata.HashType;
 import org.apache.beam.sdk.extensions.smb.SMBFilenamePolicy.FileAssignment;
+import org.apache.beam.sdk.io.Compression;
 import org.apache.beam.sdk.io.LocalResources;
 import org.apache.beam.sdk.io.fs.ResolveOptions.StandardResolveOptions;
 import org.apache.beam.sdk.io.fs.ResourceId;
@@ -57,21 +58,23 @@ public class SMBFilenamePolicyTest {
 
     // Test valid shard-bucket combination
     Assert.assertEquals(
-        fileAssignment.forBucket(BucketShardId.of(5, 1), metadata),
+        fileAssignment.forBucket(BucketShardId.of(5, 1), metadata, Compression.UNCOMPRESSED),
         resolveFile(destination, "bucket-00005-of-00008-shard-00001-of-00003", SUFFIX));
 
     Assert.assertEquals(
-        fileAssignment.forBucket(BucketShardId.ofNullKey(1), metadata),
+        fileAssignment.forBucket(BucketShardId.ofNullKey(1), metadata, Compression.UNCOMPRESSED),
         resolveFile(destination, "bucket-null-keys-shard-00001-of-00003", SUFFIX));
 
     // Test invalid shard-bucket combinations
     Assert.assertThrows(
         IllegalArgumentException.class,
-        () -> fileAssignment.forBucket(BucketShardId.of(100, 1), metadata));
+        () ->
+            fileAssignment.forBucket(BucketShardId.of(100, 1), metadata, Compression.UNCOMPRESSED));
 
     Assert.assertThrows(
         IllegalArgumentException.class,
-        () -> fileAssignment.forBucket(BucketShardId.of(2, 100), metadata));
+        () ->
+            fileAssignment.forBucket(BucketShardId.of(2, 100), metadata, Compression.UNCOMPRESSED));
   }
 
   @Test
@@ -100,7 +103,7 @@ public class SMBFilenamePolicyTest {
     Assert.assertTrue(
         policy
             .forTempFiles(tmpDstResource)
-            .forBucket(BucketShardId.of(5, 1), metadata)
+            .forBucket(BucketShardId.of(5, 1), metadata, Compression.UNCOMPRESSED)
             .toString()
             .matches(
                 tmpFileRegex(
@@ -112,14 +115,14 @@ public class SMBFilenamePolicyTest {
         () ->
             testFilenamePolicy(destination)
                 .forTempFiles(tmpDstResource)
-                .forBucket(BucketShardId.of(100, 1), metadata));
+                .forBucket(BucketShardId.of(100, 1), metadata, Compression.UNCOMPRESSED));
 
     Assert.assertThrows(
         IllegalArgumentException.class,
         () ->
             testFilenamePolicy(destination)
                 .forTempFiles(tmpDstResource)
-                .forBucket(BucketShardId.of(2, 100), metadata));
+                .forBucket(BucketShardId.of(2, 100), metadata, Compression.UNCOMPRESSED));
   }
 
   private static SMBFilenamePolicy testFilenamePolicy(TemporaryFolder folder) {
