@@ -15,7 +15,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.beam.sdk.extensions.smb.benchmark;
 
 import java.util.concurrent.ThreadLocalRandom;
@@ -28,9 +27,8 @@ import org.apache.beam.sdk.extensions.smb.SortedBucketSink;
 import org.apache.beam.sdk.extensions.smb.avro.AvroBucketMetadata;
 import org.apache.beam.sdk.extensions.smb.avro.AvroFileOperations;
 import org.apache.beam.sdk.io.AvroGeneratedUser;
-import org.apache.beam.sdk.io.CountingSource;
 import org.apache.beam.sdk.io.FileSystems;
-import org.apache.beam.sdk.io.Read;
+import org.apache.beam.sdk.io.GenerateSequence;
 import org.apache.beam.sdk.io.fs.ResourceId;
 import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.options.PipelineOptionsFactory;
@@ -40,9 +38,10 @@ import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.TypeDescriptor;
 import org.apache.beam.sdk.values.TypeDescriptors;
 import org.apache.beam.vendor.guava.v20_0.com.google.common.collect.ImmutableList;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
+/**
+ * Sink benchmark for skewed data following a zipf distribution
+ */
 public class SkewSinkBenchmark {
 
   /** SinkOptions. */
@@ -60,17 +59,20 @@ public class SkewSinkBenchmark {
     void setNumShards(int value);
   }
 
+  // @TODO: Tune these values until job starts to fail with a single shard
+  private static final double s = 1.8;
+  private static final int numKeys = 500000;
 
-  private static final double s = 1.2;
-  private static final int numKeys = 1000000;
+  // For key 0, frequency can be > 2 billion which isn't realistic either
   private static final int maxRecordsPerKey = 10000000;
-  private static final int maxRecordsPerWorker = 100000;
+  private static final int maxRecordsPerWorker = 50000;
 
-  private static final Logger LOG = LoggerFactory.getLogger(SkewSinkBenchmark.class);
+  // Multiplication factor so there is a minimum of 1 occurrence per key
   private static final double normalizationFactor = 1.0 / getFrequency(numKeys);
 
+  // Use a zipf distribution with provided value of `s`
   private static double getFrequency(long key) {
-    return (1 / Math.pow(key, s));
+    return (1 / Math.pow(key + 0.001, s));
   }
 
   private static long getNumOccurrencesForKey(long key) {
@@ -78,53 +80,50 @@ public class SkewSinkBenchmark {
   }
 
   public static void main(String[] args) throws Exception {
-    final SinkOptions sinkOptions =
-        PipelineOptionsFactory.fromArgs(args).as(SinkOptions.class);
+    final SinkOptions sinkOptions = PipelineOptionsFactory.fromArgs(args).as(SinkOptions.class);
 
     final Pipeline pipeline = Pipeline.create(sinkOptions);
 
-    final PCollection<AvroGeneratedUser> left =
+    final PCollection<AvroGeneratedUser> skewData =
         pipeline
-            .apply(Read.from(CountingSource.upTo(numKeys)))
-            .apply(FlatMapElements.into(TypeDescriptors.kvs(
-                TypeDescriptors.longs(), TypeDescriptors.integers())).via(key -> {
-              long frequency = Math.min(maxRecordsPerKey, getNumOccurrencesForKey(key));
-              if (frequency < maxRecordsPerWorker) {
-                return ImmutableList.of(KV.of(key, (int) frequency));
-              } else {
-                LOG.info(
-                    String.format("(%d, %d): for 0 -> %d, emit KV(%d, %d)",
-                        key, frequency,
-                        (int) Math.ceil(frequency / maxRecordsPerWorker), key,
-                        maxRecordsPerWorker));
+            .apply(GenerateSequence.from(0).to(numKeys))
+            .apply(
+                FlatMapElements.into(
+                        TypeDescriptors.kvs(TypeDescriptors.longs(), TypeDescriptors.integers()))
+                    .via(
+                        key -> {
+                          long frequency = Math.min(maxRecordsPerKey, getNumOccurrencesForKey(key));
 
-                return IntStream
-                    .range(0, (int) Math.ceil(frequency / maxRecordsPerWorker)).boxed()
-                    .map(shard -> KV.of(key, maxRecordsPerWorker))
-                    .collect(Collectors.toList());
-              }
-            })).apply(
-                FlatMapElements
-                    .into(TypeDescriptor.of(AvroGeneratedUser.class))
-                    .via(kv -> {
-                      LOG.info(
-                          String.format("Outputting: %d, %d times", kv.getKey(),
-                              kv.getValue()));
-
-                      return IntStream.rangeClosed(0, kv.getValue())
-                        .boxed()
-                        .map(
-                            j ->
-                                AvroGeneratedUser.newBuilder()
-                                    .setName(String.format("user-%08d", kv.getKey()))
-                                    .setFavoriteNumber(ThreadLocalRandom.current().nextInt())
-                                    .setFavoriteColor(String.format("color-%08d", 5))
-                                    .build())
-                        .collect(Collectors.toList());
-                    }));
+                          if (frequency < maxRecordsPerWorker) {
+                            return ImmutableList.of(KV.of(key, (int) frequency));
+                          } else {
+                            // If there's too many occurrences to fit in one in-memory list shard
+                            // it out across workers
+                            return IntStream.range(0, (int) frequency / maxRecordsPerWorker)
+                                .boxed()
+                                .map(shard -> KV.of(key, maxRecordsPerWorker))
+                                .collect(Collectors.toList());
+                          }
+                        }))
+            .apply(
+                FlatMapElements.into(TypeDescriptor.of(AvroGeneratedUser.class))
+                    .via(
+                        kv ->
+                            IntStream.rangeClosed(0, kv.getValue())
+                                .boxed()
+                                .map(
+                                    j ->
+                                        AvroGeneratedUser.newBuilder()
+                                            .setName(String.format("user-%08d", kv.getKey()))
+                                            .setFavoriteNumber(
+                                                ThreadLocalRandom.current().nextInt())
+                                            .setFavoriteColor(String.format("color-%08d", 5))
+                                            .build())
+                                .collect(Collectors.toList())));
 
     final ResourceId out = FileSystems.matchNewResource(sinkOptions.getOutputDir(), true);
-    final ResourceId temp = FileSystems.matchNewResource(pipeline.getOptions().getTempLocation(), true);
+    final ResourceId temp =
+        FileSystems.matchNewResource(pipeline.getOptions().getTempLocation(), true);
 
     final AvroBucketMetadata<CharSequence, AvroGeneratedUser> avroMetadata =
         new AvroBucketMetadata<>(
@@ -140,29 +139,7 @@ public class SkewSinkBenchmark {
     final SortedBucketSink<CharSequence, AvroGeneratedUser> avroSink =
         new SortedBucketSink<>(avroMetadata, avroPolicy, avroOps::createWriter, temp);
 
-    left.apply(avroSink);
-//
-//
-//    // Non-skewed dataset to join with
-//    final PCollection<AvroGeneratedUser> right =
-//        pipeline
-//            .apply(Read.from(CountingSource.upTo(numKeys)))
-//            .apply(
-//                FlatMapElements.into(TypeDescriptor.of(AvroGeneratedUser.class))
-//                    .via(
-//                        i ->
-//                            IntStream.rangeClosed(0, 10)
-//                                .boxed()
-//                                .map(
-//                                    j ->
-//                                        AvroGeneratedUser.newBuilder()
-//                                            .setName(String.format("user-%08d", i))
-//                                            .setFavoriteNumber(j)
-//                                            .setFavoriteColor(String.format("color-%08d", j))
-//                                            .build())
-//                                .collect(Collectors.toList())));
-//
-
+    skewData.apply(avroSink);
 
     pipeline.run();
   }
