@@ -29,6 +29,7 @@ import org.apache.beam.sdk.extensions.smb.SortedBucketSource;
 import org.apache.beam.sdk.extensions.smb.avro.AvroSortedBucketIO;
 import org.apache.beam.sdk.extensions.smb.json.JsonSortedBucketIO;
 import org.apache.beam.sdk.io.AvroGeneratedUser;
+import org.apache.beam.sdk.io.Compression;
 import org.apache.beam.sdk.io.FileSystems;
 import org.apache.beam.sdk.io.gcp.bigquery.TableRowJsonCoder;
 import org.apache.beam.sdk.options.PipelineOptions;
@@ -72,7 +73,9 @@ public class SourceBenchmark {
                     FileSystems.matchNewResource(sourceOptions.getAvroSource(), true)))
             .and(
                 JsonSortedBucketIO.source(
-                    rhsTag, FileSystems.matchNewResource(sourceOptions.getJsonSource(), true)))
+                    rhsTag,
+                    FileSystems.matchNewResource(sourceOptions.getJsonSource(), true),
+                    Compression.UNCOMPRESSED))
             .build();
 
     pipeline

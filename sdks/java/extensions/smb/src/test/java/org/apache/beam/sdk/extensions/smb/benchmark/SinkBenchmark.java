@@ -34,6 +34,7 @@ import org.apache.beam.sdk.extensions.smb.avro.AvroFileOperations;
 import org.apache.beam.sdk.extensions.smb.json.JsonBucketMetadata;
 import org.apache.beam.sdk.extensions.smb.json.JsonFileOperations;
 import org.apache.beam.sdk.io.AvroGeneratedUser;
+import org.apache.beam.sdk.io.Compression;
 import org.apache.beam.sdk.io.FileSystems;
 import org.apache.beam.sdk.io.GenerateSequence;
 import org.apache.beam.sdk.io.fs.ResourceId;
@@ -175,7 +176,7 @@ public class SinkBenchmark {
     final SMBFilenamePolicy jsonPolicy =
         new SMBFilenamePolicy(
             FileSystems.matchNewResource(sinkOptions.getJsonDestination(), true), ".json");
-    JsonFileOperations jsonOps = new JsonFileOperations();
+    JsonFileOperations jsonOps = new JsonFileOperations(Compression.UNCOMPRESSED);
     final SortedBucketSink<String, TableRow> jsonSink =
         new SortedBucketSink<>(jsonMetadata, jsonPolicy, jsonOps::createWriter, tempDirectory);
 

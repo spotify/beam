@@ -22,6 +22,7 @@ import java.nio.channels.WritableByteChannel;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.extensions.protobuf.ProtoCoder;
 import org.apache.beam.sdk.extensions.smb.FileOperations;
+import org.apache.beam.sdk.io.Compression;
 import org.apache.beam.sdk.io.TFRecordIO;
 import org.apache.beam.sdk.util.MimeTypes;
 import org.tensorflow.example.Example;
@@ -31,6 +32,10 @@ import org.tensorflow.example.Example;
  * Example} records.
  */
 public class TensorFlowFileOperations extends FileOperations<Example> {
+
+  public TensorFlowFileOperations(Compression compression) {
+    super(compression);
+  }
 
   @Override
   public Reader<Example> createReader() {

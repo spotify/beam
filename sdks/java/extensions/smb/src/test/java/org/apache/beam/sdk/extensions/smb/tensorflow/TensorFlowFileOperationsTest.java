@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.beam.sdk.extensions.smb.FileOperations;
+import org.apache.beam.sdk.io.Compression;
 import org.apache.beam.sdk.io.FileSystems;
 import org.apache.beam.sdk.io.fs.ResolveOptions;
 import org.apache.beam.sdk.io.fs.ResourceId;
@@ -45,7 +46,8 @@ public class TensorFlowFileOperationsTest {
 
   @Test
   public void test() throws Exception {
-    final TensorFlowFileOperations fileOperations = new TensorFlowFileOperations();
+    final TensorFlowFileOperations fileOperations =
+        new TensorFlowFileOperations(Compression.UNCOMPRESSED);
     final ResourceId file =
         fromFolder(output)
             .resolve("file.tfrecords", ResolveOptions.StandardResolveOptions.RESOLVE_FILE);

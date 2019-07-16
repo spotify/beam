@@ -27,9 +27,15 @@ import java.nio.channels.WritableByteChannel;
 import java.nio.charset.Charset;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.coders.StringUtf8Coder;
+import org.apache.beam.sdk.io.Compression;
 import org.apache.beam.sdk.util.MimeTypes;
 
 class TestFileOperations extends FileOperations<String> {
+
+  TestFileOperations() {
+    super(Compression.UNCOMPRESSED);
+  }
+
   @Override
   public Reader<String> createReader() {
     return new Reader<String>() {

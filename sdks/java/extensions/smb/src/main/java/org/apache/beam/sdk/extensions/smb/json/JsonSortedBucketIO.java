@@ -21,6 +21,7 @@ import com.google.api.services.bigquery.model.TableRow;
 import org.apache.beam.sdk.extensions.smb.SortedBucketIO;
 import org.apache.beam.sdk.extensions.smb.SortedBucketSink;
 import org.apache.beam.sdk.extensions.smb.SortedBucketSource.BucketedInput;
+import org.apache.beam.sdk.io.Compression;
 import org.apache.beam.sdk.io.fs.ResourceId;
 import org.apache.beam.sdk.values.TupleTag;
 
@@ -30,13 +31,19 @@ public class JsonSortedBucketIO {
   public static <KeyT> SortedBucketSink<KeyT, TableRow> sink(
       JsonBucketMetadata<KeyT> bucketingMetadata,
       ResourceId outputDirectory,
-      ResourceId tempDirectory) {
+      ResourceId tempDirectory,
+      Compression compression) {
     return SortedBucketIO.write(
-        bucketingMetadata, outputDirectory, ".json", tempDirectory, new JsonFileOperations());
+        bucketingMetadata,
+        outputDirectory,
+        ".json",
+        tempDirectory,
+        new JsonFileOperations(compression));
   }
 
   public static <KeyT> BucketedInput<KeyT, TableRow> source(
-      TupleTag<TableRow> tupleTag, ResourceId filenamePrefix) {
-    return new BucketedInput<>(tupleTag, filenamePrefix, ".json", new JsonFileOperations());
+      TupleTag<TableRow> tupleTag, ResourceId filenamePrefix, Compression compression) {
+    return new BucketedInput<>(
+        tupleTag, filenamePrefix, ".json", new JsonFileOperations(compression));
   }
 }
