@@ -135,7 +135,7 @@ public class SkewSinkBenchmark {
     final AvroFileOperations<AvroGeneratedUser> avroOps =
         AvroFileOperations.of(AvroGeneratedUser.class);
     final SortedBucketSink<CharSequence, AvroGeneratedUser> avroSink =
-        new SortedBucketSink<>(avroMetadata, avroPolicy, avroOps::createWriter, temp);
+        new SortedBucketSink<>(avroMetadata, avroPolicy, avroOps, temp);
 
     skewData.apply(avroSink);
 

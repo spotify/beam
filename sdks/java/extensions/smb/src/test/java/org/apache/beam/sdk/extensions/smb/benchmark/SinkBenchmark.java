@@ -162,7 +162,7 @@ public class SinkBenchmark {
     final AvroFileOperations<AvroGeneratedUser> avroOps =
         AvroFileOperations.of(AvroGeneratedUser.class);
     final SortedBucketSink<CharSequence, AvroGeneratedUser> avroSink =
-        new SortedBucketSink<>(avroMetadata, avroPolicy, avroOps::createWriter, tempDirectory);
+        new SortedBucketSink<>(avroMetadata, avroPolicy, avroOps, tempDirectory);
 
     avroData.apply(avroSink);
 
@@ -178,7 +178,7 @@ public class SinkBenchmark {
             FileSystems.matchNewResource(sinkOptions.getJsonDestination(), true), ".json");
     JsonFileOperations jsonOps = new JsonFileOperations(Compression.UNCOMPRESSED);
     final SortedBucketSink<String, TableRow> jsonSink =
-        new SortedBucketSink<>(jsonMetadata, jsonPolicy, jsonOps::createWriter, tempDirectory);
+        new SortedBucketSink<>(jsonMetadata, jsonPolicy, jsonOps, tempDirectory);
 
     jsonData.apply(jsonSink);
 
