@@ -83,7 +83,7 @@ public class SortedBucketIO {
     return new SortedBucketSink<>(
         bucketingMetadata,
         new SMBFilenamePolicy(outputDirectory, filenameSuffix),
-        fileOperations::createWriter,
+        fileOperations,
         tempDirectory);
   }
 }

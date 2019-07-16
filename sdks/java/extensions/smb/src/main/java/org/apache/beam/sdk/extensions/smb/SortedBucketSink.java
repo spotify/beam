@@ -53,7 +53,6 @@ import org.apache.beam.sdk.values.POutput;
 import org.apache.beam.sdk.values.PValue;
 import org.apache.beam.sdk.values.TupleTag;
 import org.apache.beam.vendor.guava.v20_0.com.google.common.base.Preconditions;
-import org.apache.beam.vendor.guava.v20_0.com.google.common.base.Supplier;
 import org.apache.beam.vendor.guava.v20_0.com.google.common.collect.ImmutableList;
 import org.apache.beam.vendor.guava.v20_0.com.google.common.collect.ImmutableMap;
 
@@ -69,17 +68,17 @@ public class SortedBucketSink<K, V> extends PTransform<PCollection<V>, WriteResu
 
   private final BucketMetadata<K, V> bucketMetadata;
   private final SMBFilenamePolicy filenamePolicy;
-  private final SerializableSupplier<Writer<V>> writerSupplier;
+  private final FileOperations<V> fileOperations;
   private final ResourceId tempDirectory;
 
   public SortedBucketSink(
       BucketMetadata<K, V> bucketMetadata,
       SMBFilenamePolicy filenamePolicy,
-      SerializableSupplier<Writer<V>> writerSupplier,
+      FileOperations<V> fileOperations,
       ResourceId tempDirectory) {
     this.bucketMetadata = bucketMetadata;
     this.filenamePolicy = filenamePolicy;
-    this.writerSupplier = writerSupplier;
+    this.fileOperations = fileOperations;
     this.tempDirectory = tempDirectory;
   }
 
@@ -102,7 +101,7 @@ public class SortedBucketSink<K, V> extends PTransform<PCollection<V>, WriteResu
                     .withExternalSorterType(ExternalSorter.Options.SorterType.NATIVE)))
         .apply(
             "WriteOperation",
-            new WriteOperation<>(filenamePolicy, bucketMetadata, writerSupplier, tempDirectory));
+            new WriteOperation<>(filenamePolicy, bucketMetadata, fileOperations, tempDirectory));
   }
 
   /** Extract bucket and shard id for grouping, and key bytes for sorting. */
@@ -185,17 +184,17 @@ public class SortedBucketSink<K, V> extends PTransform<PCollection<V>, WriteResu
       extends PTransform<PCollection<KV<BucketShardId, Iterable<KV<byte[], V>>>>, WriteResult> {
     private final SMBFilenamePolicy filenamePolicy;
     private final BucketMetadata<?, V> bucketMetadata;
-    private final Supplier<Writer<V>> writerSupplier;
+    private final FileOperations<V> fileOperations;
     private final ResourceId tempDirectory;
 
     WriteOperation(
         SMBFilenamePolicy filenamePolicy,
         BucketMetadata<?, V> bucketMetadata,
-        Supplier<Writer<V>> writerSupplier,
+        FileOperations<V> fileOperations,
         ResourceId tempDirectory) {
       this.filenamePolicy = filenamePolicy;
       this.bucketMetadata = bucketMetadata;
-      this.writerSupplier = writerSupplier;
+      this.fileOperations = fileOperations;
       this.tempDirectory = tempDirectory;
     }
 
@@ -205,11 +204,11 @@ public class SortedBucketSink<K, V> extends PTransform<PCollection<V>, WriteResu
           .apply(
               "WriteTempFiles",
               new WriteTempFiles<>(
-                  filenamePolicy.forTempFiles(tempDirectory), bucketMetadata, writerSupplier))
+                  filenamePolicy.forTempFiles(tempDirectory), bucketMetadata, fileOperations))
           .apply(
               "FinalizeTempFiles",
               new FinalizeTempFiles<>(
-                  filenamePolicy.forDestination(), bucketMetadata, writerSupplier));
+                  filenamePolicy.forDestination(), bucketMetadata, fileOperations));
     }
   }
 
@@ -220,15 +219,15 @@ public class SortedBucketSink<K, V> extends PTransform<PCollection<V>, WriteResu
 
     private final FileAssignment fileAssignment;
     private final BucketMetadata bucketMetadata;
-    private final Supplier<Writer<V>> writerSupplier;
+    private final FileOperations<V> fileOperations;
 
     WriteTempFiles(
         FileAssignment fileAssignment,
         BucketMetadata bucketMetadata,
-        Supplier<Writer<V>> writerSupplier) {
+        FileOperations<V> fileOperations) {
       this.fileAssignment = fileAssignment;
       this.bucketMetadata = bucketMetadata;
-      this.writerSupplier = writerSupplier;
+      this.fileOperations = fileOperations;
     }
 
     @Override
@@ -251,7 +250,8 @@ public class SortedBucketSink<K, V> extends PTransform<PCollection<V>, WriteResu
                           final ResourceId tmpFile =
                               fileAssignment.forBucket(bucketShardId, bucketMetadata);
 
-                          try (final FileOperations.Writer<V> writer = writerSupplier.get()) {
+                          try (final FileOperations.Writer<V> writer =
+                              fileOperations.createWriter()) {
                             writer.prepareWrite(FileSystems.create(tmpFile, writer.getMimeType()));
                             records.forEach(
                                 kv -> {
@@ -288,15 +288,15 @@ public class SortedBucketSink<K, V> extends PTransform<PCollection<V>, WriteResu
   static class FinalizeTempFiles<V> extends PTransform<PCollectionTuple, WriteResult> {
     private final FileAssignment fileAssignment;
     private final BucketMetadata bucketMetadata;
-    private final Supplier<Writer<V>> writerSupplier;
+    private final FileOperations<V> fileOperations;
 
     FinalizeTempFiles(
         FileAssignment fileAssignment,
         BucketMetadata bucketMetadata,
-        Supplier<Writer<V>> writerSupplier) {
+        FileOperations<V> fileOperations) {
       this.fileAssignment = fileAssignment;
       this.bucketMetadata = bucketMetadata;
-      this.writerSupplier = writerSupplier;
+      this.fileOperations = fileOperations;
     }
 
     @Override
@@ -329,7 +329,7 @@ public class SortedBucketSink<K, V> extends PTransform<PCollection<V>, WriteResu
                             "RenameBuckets",
                             ParDo.of(
                                 new RenameBuckets<>(
-                                    fileAssignment, bucketMetadata, writerSupplier)));
+                                    fileAssignment, bucketMetadata, fileOperations)));
 
                 // @Todo - reduce this to a single FileSystems.rename operation for atomicity?
 
@@ -343,15 +343,15 @@ public class SortedBucketSink<K, V> extends PTransform<PCollection<V>, WriteResu
 
       private final FileAssignment fileAssignment;
       private final BucketMetadata bucketMetadata;
-      private final Supplier<Writer<V>> writerSupplier;
+      private final FileOperations<V> fileOperations;
 
       RenameBuckets(
           FileAssignment fileAssignment,
           BucketMetadata bucketMetadata,
-          Supplier<Writer<V>> writerSupplier) {
+          FileOperations<V> fileOperations) {
         this.fileAssignment = fileAssignment;
         this.bucketMetadata = bucketMetadata;
-        this.writerSupplier = writerSupplier;
+        this.fileOperations = fileOperations;
       }
 
       @ProcessElement
@@ -369,7 +369,7 @@ public class SortedBucketSink<K, V> extends PTransform<PCollection<V>, WriteResu
         for (BucketShardId id : missingFiles) {
           final ResourceId dstFile = fileAssignment.forBucket(id, bucketMetadata);
 
-          try (final Writer<?> writer = writerSupplier.get()) {
+          try (final Writer<?> writer = fileOperations.createWriter()) {
             writer.prepareWrite(FileSystems.create(dstFile, writer.getMimeType()));
           }
           c.output(KV.of(id, dstFile));
