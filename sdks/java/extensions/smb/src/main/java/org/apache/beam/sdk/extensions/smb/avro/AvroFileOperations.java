@@ -21,26 +21,22 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
-import java.nio.channels.WritableByteChannel;
 import org.apache.avro.Schema;
 import org.apache.avro.file.CodecFactory;
 import org.apache.avro.file.DataFileStream;
-import org.apache.avro.file.DataFileWriter;
 import org.apache.avro.generic.GenericDatumReader;
-import org.apache.avro.generic.GenericDatumWriter;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.io.DatumReader;
-import org.apache.avro.io.DatumWriter;
 import org.apache.avro.reflect.ReflectData;
 import org.apache.avro.reflect.ReflectDatumReader;
-import org.apache.avro.reflect.ReflectDatumWriter;
 import org.apache.avro.specific.SpecificRecordBase;
 import org.apache.beam.sdk.coders.AvroCoder;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.extensions.smb.FileOperations;
+import org.apache.beam.sdk.io.AvroIO;
 import org.apache.beam.sdk.io.Compression;
+import org.apache.beam.sdk.io.FileIO;
 import org.apache.beam.sdk.io.SerializableAvroCodecFactory;
-import org.apache.beam.sdk.util.MimeTypes;
 import org.apache.beam.vendor.guava.v20_0.com.google.common.base.Supplier;
 
 /** {@link FileOperations} implementation for Avro records. */
@@ -74,9 +70,14 @@ public class AvroFileOperations<ValueT> extends FileOperations<ValueT> {
     return new AvroReader<>(recordClass, schemaSupplier);
   }
 
+  @SuppressWarnings("unchecked")
   @Override
-  public Writer<ValueT> createWriter() {
-    return new AvroWriter<>(recordClass, schemaSupplier, codec);
+  public FileIO.Sink<ValueT> createSink() {
+    final AvroIO.Sink<ValueT> sink =
+        recordClass == null
+            ? (AvroIO.Sink<ValueT>) AvroIO.sink(getSchema())
+            : AvroIO.sink(recordClass);
+    return sink.withCodec(codec.getCodec());
   }
 
   @SuppressWarnings("unchecked")
@@ -158,53 +159,6 @@ public class AvroFileOperations<ValueT> extends FileOperations<ValueT> {
     @Override
     public void finishRead() throws Exception {
       reader.close();
-    }
-  }
-
-  ////////////////////////////////////////
-  // Writer
-  ////////////////////////////////////////
-
-  private static class AvroWriter<ValueT> extends FileOperations.Writer<ValueT> {
-
-    private final Class<ValueT> recordClass;
-    private final SerializableSchemaSupplier schemaSupplier;
-    private final SerializableAvroCodecFactory codec;
-    private transient DataFileWriter<ValueT> writer;
-
-    AvroWriter(
-        Class<ValueT> recordClass,
-        SerializableSchemaSupplier schemaSupplier,
-        SerializableAvroCodecFactory codec) {
-      this.recordClass = recordClass;
-      this.schemaSupplier = schemaSupplier;
-      this.codec = codec;
-    }
-
-    @Override
-    public String getMimeType() {
-      return MimeTypes.BINARY;
-    }
-
-    @Override
-    public void prepareWrite(WritableByteChannel channel) throws Exception {
-      final Schema schema = schemaSupplier.get();
-      DatumWriter<ValueT> datumWriter =
-          recordClass == null
-              ? new GenericDatumWriter<>(schema)
-              : new ReflectDatumWriter<>(recordClass);
-      writer = new DataFileWriter<>(datumWriter).setCodec(codec.getCodec());
-      writer.create(schema, Channels.newOutputStream(channel));
-    }
-
-    @Override
-    public void write(ValueT value) throws Exception {
-      writer.append(value);
-    }
-
-    @Override
-    public void close() throws Exception {
-      writer.close();
     }
   }
 }

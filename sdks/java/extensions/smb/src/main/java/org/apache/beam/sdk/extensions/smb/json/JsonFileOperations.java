@@ -20,9 +20,8 @@ package org.apache.beam.sdk.extensions.smb.json;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.api.services.bigquery.model.TableRow;
 import java.io.BufferedReader;
-import java.io.BufferedWriter;
+import java.io.IOException;
 import java.io.InputStreamReader;
-import java.io.OutputStreamWriter;
 import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
@@ -30,6 +29,8 @@ import java.nio.charset.Charset;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.extensions.smb.FileOperations;
 import org.apache.beam.sdk.io.Compression;
+import org.apache.beam.sdk.io.FileIO;
+import org.apache.beam.sdk.io.TextIO;
 import org.apache.beam.sdk.io.gcp.bigquery.TableRowJsonCoder;
 
 /** {@link FileOperations} implementation for BigQuery {@link TableRow} JSON records. */
@@ -45,8 +46,27 @@ public class JsonFileOperations extends FileOperations<TableRow> {
   }
 
   @Override
-  public Writer<TableRow> createWriter() {
-    return new JsonWriter();
+  public FileIO.Sink<TableRow> createSink() {
+    return new FileIO.Sink<TableRow>() {
+
+      private final ObjectMapper objectMapper = new ObjectMapper();
+      private final FileIO.Sink<String> sink = TextIO.sink();
+
+      @Override
+      public void open(WritableByteChannel channel) throws IOException {
+        sink.open(channel);
+      }
+
+      @Override
+      public void write(TableRow element) throws IOException {
+        sink.write(objectMapper.writeValueAsString(element));
+      }
+
+      @Override
+      public void flush() throws IOException {
+        sink.flush();
+      }
+    };
   }
 
   @Override
@@ -84,40 +104,6 @@ public class JsonFileOperations extends FileOperations<TableRow> {
     @Override
     public void finishRead() throws Exception {
       reader.close();
-    }
-  }
-
-  ////////////////////////////////////////
-  // Writer
-  ////////////////////////////////////////
-
-  private static class JsonWriter extends FileOperations.Writer<TableRow> {
-
-    private transient ObjectMapper objectMapper;
-    private transient BufferedWriter writer;
-
-    @Override
-    public String getMimeType() {
-      return "application/json";
-    }
-
-    @Override
-    public void prepareWrite(WritableByteChannel channel) throws Exception {
-      objectMapper = new ObjectMapper();
-      writer =
-          new BufferedWriter(
-              new OutputStreamWriter(Channels.newOutputStream(channel), Charset.defaultCharset()));
-    }
-
-    @Override
-    public void write(TableRow value) throws Exception {
-      writer.write(objectMapper.writeValueAsString(value));
-      writer.newLine();
-    }
-
-    @Override
-    public void close() throws Exception {
-      writer.close();
     }
   }
 }
