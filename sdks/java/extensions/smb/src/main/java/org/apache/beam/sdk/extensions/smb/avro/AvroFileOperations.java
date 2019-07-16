@@ -38,6 +38,7 @@ import org.apache.avro.specific.SpecificRecordBase;
 import org.apache.beam.sdk.coders.AvroCoder;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.extensions.smb.FileOperations;
+import org.apache.beam.sdk.io.Compression;
 import org.apache.beam.sdk.io.SerializableAvroCodecFactory;
 import org.apache.beam.sdk.util.MimeTypes;
 import org.apache.beam.vendor.guava.v20_0.com.google.common.base.Supplier;
@@ -52,6 +53,7 @@ public class AvroFileOperations<ValueT> extends FileOperations<ValueT> {
   private static final CodecFactory DEFAULT_CODEC = CodecFactory.snappyCodec();
 
   private AvroFileOperations(Class<ValueT> recordClass, Schema schema, CodecFactory codec) {
+    super(Compression.UNCOMPRESSED); // Avro has its own compression via codec
     this.recordClass = recordClass;
     this.schemaSupplier = new SerializableSchemaSupplier(schema);
     this.codec = new SerializableAvroCodecFactory(codec);

@@ -37,6 +37,7 @@ import org.apache.beam.sdk.extensions.smb.avro.AvroBucketMetadata;
 import org.apache.beam.sdk.extensions.smb.avro.AvroSortedBucketIO;
 import org.apache.beam.sdk.extensions.smb.json.JsonBucketMetadata;
 import org.apache.beam.sdk.extensions.smb.json.JsonSortedBucketIO;
+import org.apache.beam.sdk.io.Compression;
 import org.apache.beam.sdk.io.LocalResources;
 import org.apache.beam.sdk.io.gcp.bigquery.TableRowJsonCoder;
 import org.apache.beam.sdk.testing.NeedsRunner;
@@ -144,7 +145,8 @@ public class MixedSourcesEndToEndTest {
             JsonSortedBucketIO.sink(
                 jsonMetadata,
                 LocalResources.fromFile(sourceFolder2.getRoot(), true),
-                LocalResources.fromFile(tmpFolder2.getRoot(), true)));
+                LocalResources.fromFile(tmpFolder2.getRoot(), true),
+                Compression.UNCOMPRESSED));
 
     pipeline2.run().waitUntilFinish();
 
@@ -157,7 +159,9 @@ public class MixedSourcesEndToEndTest {
                     lhsTag, GR_USER_SCHEMA, LocalResources.fromFile(sourceFolder1.getRoot(), true)))
             .and(
                 JsonSortedBucketIO.source(
-                    rhsTag, LocalResources.fromFile(sourceFolder2.getRoot(), true)))
+                    rhsTag,
+                    LocalResources.fromFile(sourceFolder2.getRoot(), true),
+                    Compression.UNCOMPRESSED))
             .build();
 
     final PCollection<KV<String, KV<Iterable<GenericRecord>, Iterable<TableRow>>>> joinedSources =
