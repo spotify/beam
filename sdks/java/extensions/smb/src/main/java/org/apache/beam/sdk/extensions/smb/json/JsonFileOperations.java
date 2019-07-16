@@ -29,10 +29,16 @@ import java.nio.channels.WritableByteChannel;
 import java.nio.charset.Charset;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.extensions.smb.FileOperations;
+import org.apache.beam.sdk.io.Compression;
 import org.apache.beam.sdk.io.gcp.bigquery.TableRowJsonCoder;
 
 /** {@link FileOperations} implementation for BigQuery {@link TableRow} JSON records. */
 public class JsonFileOperations extends FileOperations<TableRow> {
+
+  public JsonFileOperations(Compression compression) {
+    super(compression);
+  }
+
   @Override
   public Reader<TableRow> createReader() {
     return new JsonReader();
