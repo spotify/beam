@@ -120,8 +120,7 @@ public class MixedSourcesEndToEndTest {
                 avroMetadata,
                 LocalResources.fromFile(sourceFolder1.getRoot(), true),
                 LocalResources.fromFile(tmpFolder1.getRoot(), true),
-                GR_USER_SCHEMA,
-                true));
+                GR_USER_SCHEMA));
 
     pipeline1.run().waitUntilFinish();
 
@@ -145,8 +144,7 @@ public class MixedSourcesEndToEndTest {
             JsonSortedBucketIO.sink(
                 jsonMetadata,
                 LocalResources.fromFile(sourceFolder2.getRoot(), true),
-                LocalResources.fromFile(tmpFolder2.getRoot(), true),
-                true));
+                LocalResources.fromFile(tmpFolder2.getRoot(), true)));
 
     pipeline2.run().waitUntilFinish();
 
