@@ -210,7 +210,7 @@ public class FileBasedSinkTest {
     }
 
     // TODO: test with null first argument?
-    List<KV<FileResult<Void>, ResourceId>> resultsToFinalFilenames =
+    List<KV<KV<Void, ResourceId>, ResourceId>> resultsToFinalFilenames =
         writeOp.finalizeDestination(null, GlobalWindow.INSTANCE, null, fileResults);
     writeOp.moveToOutputFiles(resultsToFinalFilenames);
 
@@ -279,7 +279,7 @@ public class FileBasedSinkTest {
     List<String> expectedOutputFilenames =
         Arrays.asList("file-00-of-03.test", "file-01-of-03.test", "file-02-of-03.test");
 
-    List<KV<FileResult<Void>, ResourceId>> resultsToFinalFilenames = Lists.newArrayList();
+    List<KV<KV<Void, ResourceId>, ResourceId>> resultsToFinalFilenames = Lists.newArrayList();
     List<ResourceId> expectedOutputPaths = Lists.newArrayList();
 
     for (int i = 0; i < inputFilenames.size(); i++) {
@@ -300,12 +300,7 @@ public class FileBasedSinkTest {
               .unwindowedFilename(i, inputFilenames.size(), CompressionType.UNCOMPRESSED);
       resultsToFinalFilenames.add(
           KV.of(
-              new FileResult<>(
-                  LocalResources.fromFile(inputTmpFile, false),
-                  UNKNOWN_SHARDNUM,
-                  GlobalWindow.INSTANCE,
-                  PaneInfo.ON_TIME_AND_ONLY_FIRING,
-                  null),
+              KV.of(null, LocalResources.fromFile(inputTmpFile, false)),
               finalFilename));
     }
 

@@ -592,7 +592,7 @@ public abstract class FileBasedSink<UserT, DestinationT, OutputT>
     }
 
     @Experimental(Kind.FILESYSTEM)
-    protected final List<KV<FileResult<DestinationT>, ResourceId>> finalizeDestination(
+    protected final List<KV<KV<DestinationT, ResourceId>, ResourceId>> finalizeDestination(
         @Nullable DestinationT dest,
         @Nullable BoundedWindow window,
         @Nullable Integer numShards,
@@ -615,7 +615,7 @@ public abstract class FileBasedSink<UserT, DestinationT, OutputT>
             window,
             res.getWindow());
       }
-      List<KV<FileResult<DestinationT>, ResourceId>> outputFilenames = Lists.newArrayList();
+      List<KV<KV<DestinationT, ResourceId>, ResourceId>> outputFilenames = Lists.newArrayList();
 
       final int effectiveNumShards;
       if (numShards != null) {
@@ -667,7 +667,7 @@ public abstract class FileBasedSink<UserT, DestinationT, OutputT>
             result,
             distinctFilenames.get(finalFilename));
         distinctFilenames.put(finalFilename, result);
-        outputFilenames.add(KV.of(result, finalFilename));
+        outputFilenames.add(KV.of(KV.of(result.destination, result.getTempFilename()), finalFilename));
       }
       return outputFilenames;
     }
@@ -750,14 +750,14 @@ public abstract class FileBasedSink<UserT, DestinationT, OutputT>
     @VisibleForTesting
     @Experimental(Kind.FILESYSTEM)
     final void moveToOutputFiles(
-        List<KV<FileResult<DestinationT>, ResourceId>> resultsToFinalFilenames) throws IOException {
+        List<KV<KV<DestinationT, ResourceId>, ResourceId>> resultsToFinalFilenames) throws IOException {
       int numFiles = resultsToFinalFilenames.size();
 
       LOG.debug("Copying {} files.", numFiles);
       List<ResourceId> srcFiles = new ArrayList<>();
       List<ResourceId> dstFiles = new ArrayList<>();
-      for (KV<FileResult<DestinationT>, ResourceId> entry : resultsToFinalFilenames) {
-        srcFiles.add(entry.getKey().getTempFilename());
+      for (KV<KV<DestinationT, ResourceId>, ResourceId> entry : resultsToFinalFilenames) {
+        srcFiles.add(entry.getKey().getValue());
         dstFiles.add(entry.getValue());
         LOG.info(
             "Will copy temporary file {} to final location {}", entry.getKey(), entry.getValue());
