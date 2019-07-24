@@ -56,13 +56,23 @@ public class AvroFileOperations<ValueT> extends FileOperations<ValueT> {
   }
 
   public static <V extends GenericRecord> AvroFileOperations<V> of(Schema schema) {
-    return new AvroFileOperations<>(null, schema, DEFAULT_CODEC);
+    return of(schema, DEFAULT_CODEC);
+  }
+
+  public static <V extends GenericRecord> AvroFileOperations<V> of(
+      Schema schema, CodecFactory codec) {
+    return new AvroFileOperations<>(null, schema, codec);
   }
 
   public static <V extends SpecificRecordBase> AvroFileOperations<V> of(Class<V> recordClass) {
+    return of(recordClass, DEFAULT_CODEC);
+  }
+
+  public static <V extends SpecificRecordBase> AvroFileOperations<V> of(
+      Class<V> recordClass, CodecFactory codec) {
     // Use reflection to get SR schema
     final Schema schema = new ReflectData(recordClass.getClassLoader()).getSchema(recordClass);
-    return new AvroFileOperations<>(recordClass, schema, DEFAULT_CODEC);
+    return new AvroFileOperations<>(recordClass, schema, codec);
   }
 
   @Override

@@ -15,9 +15,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.beam.sdk.extensions.smb.json;
+package org.apache.beam.sdk.extensions.smb.tensorflow;
 
-import com.google.api.services.bigquery.model.TableRow;
 import org.apache.beam.sdk.extensions.smb.SortedBucketIO;
 import org.apache.beam.sdk.extensions.smb.SortedBucketSink;
 import org.apache.beam.sdk.extensions.smb.SortedBucketSource.BucketedInput;
@@ -25,31 +24,31 @@ import org.apache.beam.sdk.io.Compression;
 import org.apache.beam.sdk.io.fs.ResourceId;
 import org.apache.beam.sdk.values.TupleTag;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.base.Preconditions;
+import org.tensorflow.example.Example;
 
-/** Abstracts SMB sources and sinks for JSON records. */
-public class JsonSortedBucketIO {
+public class TensorFlowBucketIO {
 
-  public static <KeyT> SortedBucketSink<KeyT, TableRow> sink(
-      JsonBucketMetadata<KeyT> bucketingMetadata,
+  public static <KeyT> SortedBucketSink<KeyT, Example> sink(
+      TensorFlowMetadata<KeyT> bucketingMetata,
       ResourceId outputDirectory,
       ResourceId tempDirectory,
       Compression compression) {
     Preconditions.checkArgument(
         compression != Compression.AUTO, "AUTO compression is not supported for writing");
     return SortedBucketIO.write(
-        bucketingMetadata,
+        bucketingMetata,
         outputDirectory,
-        ".json" + compression.getSuggestedSuffix(),
+        ".tfrecord" + compression.getSuggestedSuffix(),
         tempDirectory,
-        JsonFileOperations.of(compression));
+        TensorFlowFileOperations.of(compression));
   }
 
-  public static <KeyT> BucketedInput<KeyT, TableRow> source(
-      TupleTag<TableRow> tupleTag, ResourceId filenamePrefix, Compression compression) {
+  public static <KeyT> BucketedInput<KeyT, Example> source(
+      TupleTag<Example> tupleTag, ResourceId filenamePrefix, Compression compression) {
     return new BucketedInput<>(
         tupleTag,
         filenamePrefix,
-        ".json" + compression.getSuggestedSuffix(),
-        JsonFileOperations.of(compression));
+        ".tfrecord" + compression.getSuggestedSuffix(),
+        TensorFlowFileOperations.of(compression));
   }
 }
