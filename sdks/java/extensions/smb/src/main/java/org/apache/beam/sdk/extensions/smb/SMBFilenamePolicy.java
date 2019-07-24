@@ -54,7 +54,7 @@ public final class SMBFilenamePolicy implements Serializable {
 
   FileAssignment forTempFiles(ResourceId tempDirectory) {
     final String tempDirName =
-        String.format(TEMP_DIRECTORY_PREFIX + "-%s-%s", timestamp, getTempId());
+        String.format(TEMP_DIRECTORY_PREFIX + "-%s-%08d", timestamp, getTempId());
     return new FileAssignment(
         tempDirectory
             .getCurrentDirectory()
