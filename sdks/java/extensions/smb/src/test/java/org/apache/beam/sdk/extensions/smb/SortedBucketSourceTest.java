@@ -234,7 +234,7 @@ public class SortedBucketSourceTest {
       Writer<String> writer = new TestFileOperations().createWriter();
       writer.prepareWrite(
           FileSystems.create(
-              fileAssignment.forBucket(entry.getKey(), metadata, Compression.UNCOMPRESSED),
+              fileAssignment.forBucket(entry.getKey(), metadata),
               writer.getMimeType()));
       for (String s : entry.getValue()) {
         writer.write(s);
