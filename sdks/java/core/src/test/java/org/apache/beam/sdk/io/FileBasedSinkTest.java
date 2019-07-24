@@ -299,9 +299,7 @@ public class FileBasedSinkTest {
               .getFilenamePolicy(null)
               .unwindowedFilename(i, inputFilenames.size(), CompressionType.UNCOMPRESSED);
       resultsToFinalFilenames.add(
-          KV.of(
-              KV.of(null, LocalResources.fromFile(inputTmpFile, false)),
-              finalFilename));
+          KV.of(KV.of(null, LocalResources.fromFile(inputTmpFile, false)), finalFilename));
     }
 
     // Copy input files to output files.

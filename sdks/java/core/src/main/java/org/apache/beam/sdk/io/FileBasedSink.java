@@ -667,7 +667,8 @@ public abstract class FileBasedSink<UserT, DestinationT, OutputT>
             result,
             distinctFilenames.get(finalFilename));
         distinctFilenames.put(finalFilename, result);
-        outputFilenames.add(KV.of(KV.of(result.destination, result.getTempFilename()), finalFilename));
+        outputFilenames.add(
+            KV.of(KV.of(result.destination, result.getTempFilename()), finalFilename));
       }
       return outputFilenames;
     }
@@ -750,7 +751,8 @@ public abstract class FileBasedSink<UserT, DestinationT, OutputT>
     @VisibleForTesting
     @Experimental(Kind.FILESYSTEM)
     final void moveToOutputFiles(
-        List<KV<KV<DestinationT, ResourceId>, ResourceId>> resultsToFinalFilenames) throws IOException {
+        List<KV<KV<DestinationT, ResourceId>, ResourceId>> resultsToFinalFilenames)
+        throws IOException {
       int numFiles = resultsToFinalFilenames.size();
 
       LOG.debug("Copying {} files.", numFiles);

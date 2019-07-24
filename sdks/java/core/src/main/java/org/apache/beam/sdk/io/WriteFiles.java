@@ -22,13 +22,11 @@ import static org.apache.beam.vendor.guava.v20_0.com.google.common.base.Precondi
 
 import com.google.auto.value.AutoValue;
 import java.io.IOException;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
-import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import org.apache.beam.sdk.annotations.Experimental;
 import org.apache.beam.sdk.annotations.Internal;
@@ -36,13 +34,10 @@ import org.apache.beam.sdk.coders.CannotProvideCoderException;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.coders.Coder.NonDeterministicException;
 import org.apache.beam.sdk.coders.KvCoder;
-import org.apache.beam.sdk.coders.ListCoder;
 import org.apache.beam.sdk.coders.ShardedKeyCoder;
-import org.apache.beam.sdk.coders.StringUtf8Coder;
 import org.apache.beam.sdk.coders.VarIntCoder;
 import org.apache.beam.sdk.io.FileBasedSink.DynamicDestinations;
 import org.apache.beam.sdk.io.FileBasedSink.FileResult;
-import org.apache.beam.sdk.io.FileBasedSink.FileResultCoder;
 import org.apache.beam.sdk.io.FileBasedSink.WriteOperation;
 import org.apache.beam.sdk.io.FileBasedSink.Writer;
 import org.apache.beam.sdk.io.fs.ResourceId;
@@ -55,15 +50,9 @@ import org.apache.beam.sdk.transforms.Flatten;
 import org.apache.beam.sdk.transforms.GroupByKey;
 import org.apache.beam.sdk.transforms.PTransform;
 import org.apache.beam.sdk.transforms.ParDo;
-import org.apache.beam.sdk.transforms.Reify;
-import org.apache.beam.sdk.transforms.Reshuffle;
-import org.apache.beam.sdk.transforms.Values;
-import org.apache.beam.sdk.transforms.View;
-import org.apache.beam.sdk.transforms.WithKeys;
 import org.apache.beam.sdk.transforms.display.DisplayData;
 import org.apache.beam.sdk.transforms.windowing.BoundedWindow;
 import org.apache.beam.sdk.transforms.windowing.DefaultTrigger;
-import org.apache.beam.sdk.transforms.windowing.GlobalWindow;
 import org.apache.beam.sdk.transforms.windowing.GlobalWindows;
 import org.apache.beam.sdk.transforms.windowing.PaneInfo;
 import org.apache.beam.sdk.transforms.windowing.Window;
@@ -81,10 +70,8 @@ import org.apache.beam.sdk.values.ShardedKey;
 import org.apache.beam.sdk.values.TupleTag;
 import org.apache.beam.sdk.values.TupleTagList;
 import org.apache.beam.vendor.guava.v20_0.com.google.common.base.Objects;
-import org.apache.beam.vendor.guava.v20_0.com.google.common.collect.ArrayListMultimap;
 import org.apache.beam.vendor.guava.v20_0.com.google.common.collect.Lists;
 import org.apache.beam.vendor.guava.v20_0.com.google.common.collect.Maps;
-import org.apache.beam.vendor.guava.v20_0.com.google.common.collect.Multimap;
 import org.apache.beam.vendor.guava.v20_0.com.google.common.hash.Hashing;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -342,9 +329,6 @@ public abstract class WriteFiles<UserT, DestinationT, OutputT>
     } catch (CannotProvideCoderException | NonDeterministicException e) {
       throw new RuntimeException(e);
     }
-    @SuppressWarnings("unchecked")
-    Coder<BoundedWindow> windowCoder =
-        (Coder<BoundedWindow>) input.getWindowingStrategy().getWindowFn().windowCoder();
 
     PCollectionView<Integer> numShardsView =
         (getComputeNumShards() == null) ? null : input.apply(getComputeNumShards());
@@ -356,14 +340,16 @@ public abstract class WriteFiles<UserT, DestinationT, OutputT>
                 new WriteUnshardedBundlesToTempFiles(destinationCoder, numShardsView))
             : input.apply(
                 "WriteShardedBundlesToTempFiles",
-                new WriteShardedBundlesToTempFiles(
-                    destinationCoder, numShardsView));
+                new WriteShardedBundlesToTempFiles(destinationCoder, numShardsView));
 
     return tempFileResults
-        .apply("GatherTempFileResults", new GatherResults<>())
-        .apply(
-            "FinalizeTempFileBundles",
-            new FinalizeTempFileBundles(numShardsView, destinationCoder));
+        .apply("FinalizeTempFiles", new WriteShardsIntoFiles.FinalizeTempFiles<>(
+            numShardsView,
+            getNumShardsProvider(),
+            getWindowedWrites(),
+            getSideInputs(),
+            writeOperation,
+            destinationCoder));
   }
 
   @Override
@@ -386,45 +372,21 @@ public abstract class WriteFiles<UserT, DestinationT, OutputT>
         writeOperation.getSink().getDynamicDestinations();
   }
 
-  private class GatherResults<ResultT>
-      extends PTransform<PCollection<ResultT>, PCollection<List<ResultT>>> {
-    @Override
-    public PCollection<List<ResultT>> expand(PCollection<ResultT> input) {
-      if (getWindowedWrites()) {
-        // Reshuffle the results to make them stable against retries.
-        // Use a single void key to maximize size of bundles for finalization.
-        return input
-            .apply("Add void key", WithKeys.of((Void) null))
-            .apply("Reshuffle", Reshuffle.of())
-            .apply("Drop key", Values.create())
-            .apply("Gather bundles", ParDo.of(new GatherBundlesPerWindowFn<>()))
-            .setCoder(ListCoder.of(input.getCoder()))
-            // Reshuffle one more time to stabilize the contents of the bundle lists to finalize.
-            .apply(Reshuffle.viaRandomKey());
-      } else {
-        // Pass results via a side input rather than reshuffle, because we need to get an empty
-        // iterable to finalize if there are no results.
-        return input
-            .getPipeline()
-            .apply(Reify.viewInGlobalWindow(input.apply(View.asList()), ListCoder.of(input.getCoder())));
-      }
-    }
-  }
-
   private class WriteUnshardedBundlesToTempFiles
-      extends PTransform<PCollection<UserT>, PCollection<KV<KV<DestinationT, ResourceId>, ResourceId>>> {
+      extends PTransform<
+          PCollection<UserT>, PCollection<KV<KV<DestinationT, ResourceId>, ResourceId>>> {
     private final Coder<DestinationT> destinationCoder;
     @Nullable private final PCollectionView<Integer> numShardsView;
 
     private WriteUnshardedBundlesToTempFiles(
-        Coder<DestinationT> destinationCoder,
-        PCollectionView<Integer> numShardsView) {
+        Coder<DestinationT> destinationCoder, PCollectionView<Integer> numShardsView) {
       this.destinationCoder = destinationCoder;
       this.numShardsView = numShardsView;
     }
 
     @Override
-    public PCollection<KV<KV<DestinationT, ResourceId>, ResourceId>> expand(PCollection<UserT> input) {
+    public PCollection<KV<KV<DestinationT, ResourceId>, ResourceId>> expand(
+        PCollection<UserT> input) {
       List<PCollectionView<?>> shardingSideInputs = Lists.newArrayList(getSideInputs());
       if (numShardsView != null) {
         shardingSideInputs.add(numShardsView);
@@ -436,19 +398,28 @@ public abstract class WriteFiles<UserT, DestinationT, OutputT>
                 "WritedUnshardedBundles",
                 ParDo.of(new WriteUnshardedTempFilesFn(null, destinationCoder, numShardsView))
                     .withSideInputs(getSideInputs()))
-            .setCoder(KvCoder.of(KvCoder.of(destinationCoder, ResourceIdCoder.of()), ResourceIdCoder.of()));
+            .setCoder(
+                KvCoder.of(
+                    KvCoder.of(destinationCoder, ResourceIdCoder.of()), ResourceIdCoder.of()));
       }
-      TupleTag<KV<KV<DestinationT, ResourceId>, ResourceId>> writtenRecordsTag = new TupleTag<>("writtenRecords");
+      TupleTag<KV<KV<DestinationT, ResourceId>, ResourceId>> writtenRecordsTag =
+          new TupleTag<>("writtenRecords");
       TupleTag<KV<ShardedKey<Integer>, UserT>> unwrittenRecordsTag =
           new TupleTag<>("unwrittenRecords");
       PCollectionTuple writeTuple =
           input.apply(
               "WriteUnshardedBundles",
-              ParDo.of(new WriteUnshardedTempFilesFn(unwrittenRecordsTag, destinationCoder, numShardsView))
+              ParDo.of(
+                      new WriteUnshardedTempFilesFn(
+                          unwrittenRecordsTag, destinationCoder, numShardsView))
                   .withSideInputs(getSideInputs())
                   .withOutputTags(writtenRecordsTag, TupleTagList.of(unwrittenRecordsTag)));
       PCollection<KV<KV<DestinationT, ResourceId>, ResourceId>> writtenBundleFiles =
-          writeTuple.get(writtenRecordsTag).setCoder(KvCoder.of(KvCoder.of(destinationCoder, ResourceIdCoder.of()), ResourceIdCoder.of()));
+          writeTuple
+              .get(writtenRecordsTag)
+              .setCoder(
+                  KvCoder.of(
+                      KvCoder.of(destinationCoder, ResourceIdCoder.of()), ResourceIdCoder.of()));
       // Any "spilled" elements are written using WriteShardedBundles. Assign shard numbers in
       // finalize to stay consistent with what WriteWindowedBundles does.
       PCollection<KV<KV<DestinationT, ResourceId>, ResourceId>> writtenSpilledFiles =
@@ -464,12 +435,16 @@ public abstract class WriteFiles<UserT, DestinationT, OutputT>
               .apply("GroupUnwritten", GroupByKey.create())
               .apply(
                   "WriteUnwritten",
-                  ParDo.of(new WriteShardsIntoTempFilesFn(numShardsView)).withSideInputs(getSideInputs()))
-              .setCoder(KvCoder.of(KvCoder.of(destinationCoder, ResourceIdCoder.of()), ResourceIdCoder.of()));
+                  ParDo.of(new WriteShardsIntoTempFilesFn(writeOperation, numShardsView))
+                      .withSideInputs(getSideInputs()))
+              .setCoder(
+                  KvCoder.of(
+                      KvCoder.of(destinationCoder, ResourceIdCoder.of()), ResourceIdCoder.of()));
       return PCollectionList.of(writtenBundleFiles)
           .and(writtenSpilledFiles)
           .apply(Flatten.pCollections())
-          .setCoder(KvCoder.of(KvCoder.of(destinationCoder, ResourceIdCoder.of()), ResourceIdCoder.of()));
+          .setCoder(
+              KvCoder.of(KvCoder.of(destinationCoder, ResourceIdCoder.of()), ResourceIdCoder.of()));
     }
   }
 
@@ -477,7 +452,8 @@ public abstract class WriteFiles<UserT, DestinationT, OutputT>
    * Writes all the elements in a bundle using a {@link Writer} produced by the {@link
    * WriteOperation} associated with the {@link FileBasedSink}.
    */
-  private class WriteUnshardedTempFilesFn extends DoFn<UserT, KV<KV<DestinationT, ResourceId>, ResourceId>> {
+  private class WriteUnshardedTempFilesFn
+      extends DoFn<UserT, KV<KV<DestinationT, ResourceId>, ResourceId>> {
     @Nullable private final TupleTag<KV<ShardedKey<Integer>, UserT>> unwrittenRecordsTag;
     private final Coder<DestinationT> destinationCoder;
     private final PCollectionView<Integer> numShardsView;
@@ -571,10 +547,12 @@ public abstract class WriteFiles<UserT, DestinationT, OutputT>
           throw e;
         }
         BoundedWindow window = key.window;
-        FileResult<DestinationT> fileResult = new FileResult<>(
-            writer.getOutputFile(), UNKNOWN_SHARDNUM, window, key.paneInfo, key.destination);
-        List<KV<KV<DestinationT, ResourceId>, ResourceId>> destinations = writeOperation.finalizeDestination(
-            key.destination, key.window, fixedNumShards, Collections.singletonList(fileResult));
+        FileResult<DestinationT> fileResult =
+            new FileResult<>(
+                writer.getOutputFile(), UNKNOWN_SHARDNUM, window, key.paneInfo, key.destination);
+        List<KV<KV<DestinationT, ResourceId>, ResourceId>> destinations =
+            writeOperation.finalizeDestination(
+                key.destination, key.window, fixedNumShards, Collections.singletonList(fileResult));
         destinations.forEach(r -> c.output(r, window.maxTimestamp(), window));
       }
     }
@@ -641,19 +619,20 @@ public abstract class WriteFiles<UserT, DestinationT, OutputT>
   }
 
   private class WriteShardedBundlesToTempFiles
-      extends PTransform<PCollection<UserT>, PCollection<KV<KV<DestinationT, ResourceId>, ResourceId>>> {
+      extends PTransform<
+          PCollection<UserT>, PCollection<KV<KV<DestinationT, ResourceId>, ResourceId>>> {
     private final Coder<DestinationT> destinationCoder;
     private final @Nullable PCollectionView<Integer> numShardsView;
 
     private WriteShardedBundlesToTempFiles(
-        Coder<DestinationT> destinationCoder,
-        @Nullable PCollectionView<Integer> numShardsView) {
+        Coder<DestinationT> destinationCoder, @Nullable PCollectionView<Integer> numShardsView) {
       this.destinationCoder = destinationCoder;
       this.numShardsView = numShardsView;
     }
 
     @Override
-    public PCollection<KV<KV<DestinationT, ResourceId>, ResourceId>> expand(PCollection<UserT> input) {
+    public PCollection<KV<KV<DestinationT, ResourceId>, ResourceId>> expand(
+        PCollection<UserT> input) {
       List<PCollectionView<?>> shardingSideInputs = Lists.newArrayList(getSideInputs());
       if (numShardsView != null) {
         shardingSideInputs.add(numShardsView);
@@ -673,8 +652,10 @@ public abstract class WriteFiles<UserT, DestinationT, OutputT>
           .apply("GroupIntoShards", GroupByKey.create())
           .apply(
               "WriteShardsIntoTempFiles",
-              ParDo.of(new WriteShardsIntoTempFilesFn(numShardsView)).withSideInputs(getSideInputs()))
-          .setCoder(KvCoder.of(KvCoder.of(destinationCoder, ResourceIdCoder.of()), ResourceIdCoder.of()));
+              ParDo.of(new WriteShardsIntoTempFilesFn(writeOperation, numShardsView))
+                  .withSideInputs(getSideInputs()))
+          .setCoder(
+              KvCoder.of(KvCoder.of(destinationCoder, ResourceIdCoder.of()), ResourceIdCoder.of()));
     }
   }
 
@@ -746,74 +727,21 @@ public abstract class WriteFiles<UserT, DestinationT, OutputT>
     }
   }
 
-  // TODO: pull out, parameterize ShardedKey
-  private abstract class WriteShardsIntoTempFilesFn2<ShardedKeyT>
-      extends DoFn<KV<ShardedKeyT, Iterable<UserT>>, KV<KV<DestinationT, ResourceId>, ResourceId>> {
-
-    protected abstract ResourceId getDestination(
-        ResourceId tempFilename,
-        ProcessContext c,
-        BoundedWindow window,
-        DestinationT destination) throws Exception;
-
-    @ProcessElement
-    public void processElement(ProcessContext c, BoundedWindow window) throws Exception {
-      getDynamicDestinations().setSideInputAccessorFromProcessContext(c);
-      // Since we key by a 32-bit hash of the destination, there might be multiple destinations
-      // in this iterable. The number of destinations is generally very small (1000s or less), so
-      // there will rarely be hash collisions.
-      Map<DestinationT, Writer<DestinationT, OutputT>> writers = Maps.newHashMap();
-      for (UserT input : c.element().getValue()) {
-        DestinationT destination = getDynamicDestinations().getDestination(input);
-        Writer<DestinationT, OutputT> writer = writers.get(destination);
-        if (writer == null) {
-          String uuid = UUID.randomUUID().toString();
-          LOG.info(
-              "Opening writer {} for window {} pane {} destination {}",
-              uuid,
-              window,
-              c.pane(),
-              destination);
-          writer = writeOperation.createWriter();
-          writer.setDestination(destination);
-          writer.open(uuid);
-          writers.put(destination, writer);
-        }
-        writeOrClose(writer, getDynamicDestinations().formatRecord(input));
-      }
-
-      // Close all writers.
-      for (Map.Entry<DestinationT, Writer<DestinationT, OutputT>> entry : writers.entrySet()) {
-        Writer<DestinationT, OutputT> writer = entry.getValue();
-        try {
-          // Close the writer; if this throws let the error propagate.
-          writer.close();
-        } catch (Exception e) {
-          // If anything goes wrong, make sure to delete the temporary file.
-          writer.cleanup();
-          throw e;
-        }
-
-        ResourceId destination = getDestination(
-            writer.getOutputFile(), c, window, entry.getKey());
-        c.output(KV.of(KV.of(entry.getKey(), writer.getOutputFile()), destination));
-      }
-    }
-  }
-
   private class WriteShardsIntoTempFilesFn
-      extends WriteShardsIntoTempFilesFn2<ShardedKey<Integer>> {
+      extends WriteShardsIntoFiles.WriteShardsIntoTempFilesFn<
+          ShardedKey<Integer>, UserT, DestinationT, OutputT> {
     private final PCollectionView<Integer> numShardsView;
-    private WriteShardsIntoTempFilesFn(PCollectionView<Integer> numShardsView) {
+
+    private WriteShardsIntoTempFilesFn(
+        FileBasedSink.WriteOperation<DestinationT, OutputT> writeOperation,
+        PCollectionView<Integer> numShardsView) {
+      super(writeOperation);
       this.numShardsView = numShardsView;
     }
 
     @Override
     protected ResourceId getDestination(
-        ResourceId tempFilename,
-        ProcessContext c,
-        BoundedWindow window,
-        DestinationT destination) throws Exception {
+        ProcessContext c, BoundedWindow window, DestinationT destination) throws Exception {
       @Nullable Integer fixedNumShards;
       if (numShardsView != null) {
         fixedNumShards = c.sideInput(numShardsView);
@@ -828,98 +756,13 @@ public abstract class WriteFiles<UserT, DestinationT, OutputT>
           "Shard should have been set, but is unset for element %s",
           c.element());
       FileResult<DestinationT> fileResult =
-          new FileResult<>(tempFilename, shard, window, c.pane(), destination);
+          new FileResult<>(null, shard, window, c.pane(), destination);
       List<KV<KV<DestinationT, ResourceId>, ResourceId>> destinations =
           writeOperation.finalizeDestination(
               destination, window, fixedNumShards, Collections.singletonList(fileResult));
       checkArgument(
           destinations.size() == 1, "Number of destinations %s != 1", destinations.size());
       return destinations.iterator().next().getValue();
-    }
-  }
-
-  private class FinalizeTempFileBundles
-      extends PTransform<
-          PCollection<List<KV<KV<DestinationT, ResourceId>, ResourceId>>>, WriteFilesResult<DestinationT>> {
-    @Nullable private final PCollectionView<Integer> numShardsView;
-    private final Coder<DestinationT> destinationCoder;
-
-    private FinalizeTempFileBundles(
-        @Nullable PCollectionView<Integer> numShardsView, Coder<DestinationT> destinationCoder) {
-      this.numShardsView = numShardsView;
-      this.destinationCoder = destinationCoder;
-    }
-
-    @Override
-    public WriteFilesResult<DestinationT> expand(
-        PCollection<List<KV<KV<DestinationT, ResourceId>, ResourceId>>> input) {
-
-      List<PCollectionView<?>> finalizeSideInputs = Lists.newArrayList(getSideInputs());
-      if (numShardsView != null) {
-        finalizeSideInputs.add(numShardsView);
-      }
-      PCollection<KV<DestinationT, String>> outputFilenames =
-          input
-              .apply("Finalize", ParDo.of(new FinalizeFn()).withSideInputs(finalizeSideInputs))
-              .setCoder(KvCoder.of(destinationCoder, StringUtf8Coder.of()))
-              // Reshuffle the filenames to make sure they are observable downstream
-              // only after each one is done finalizing.
-              .apply(Reshuffle.viaRandomKey());
-
-      TupleTag<KV<DestinationT, String>> perDestinationOutputFilenamesTag =
-          new TupleTag<>("perDestinationOutputFilenames");
-      return WriteFilesResult.in(
-          input.getPipeline(), perDestinationOutputFilenamesTag, outputFilenames);
-    }
-
-    private class FinalizeFn
-        extends DoFn<List<KV<KV<DestinationT, ResourceId>, ResourceId>>, KV<DestinationT, String>> {
-      @ProcessElement
-      public void process(ProcessContext c) throws Exception {
-        getDynamicDestinations().setSideInputAccessorFromProcessContext(c);
-        @Nullable Integer fixedNumShards;
-        if (numShardsView != null) {
-          fixedNumShards = c.sideInput(numShardsView);
-        } else if (getNumShardsProvider() != null) {
-          fixedNumShards = getNumShardsProvider().get();
-        } else {
-          fixedNumShards = null;
-        }
-        List<KV<KV<DestinationT, ResourceId>, ResourceId>> fileResults = c.element();
-        LOG.info("Finalizing {} file results", fileResults.size());
-        DestinationT defaultDest = getDynamicDestinations().getDefaultDestination();
-        List<KV<KV<DestinationT, ResourceId>, ResourceId>> resultsToFinalFilenames =
-            fileResults.isEmpty()
-                ? writeOperation.finalizeDestination(
-                    defaultDest, GlobalWindow.INSTANCE, fixedNumShards, Collections.emptyList())
-                : fileResults;
-        writeOperation.moveToOutputFiles(resultsToFinalFilenames);
-        for (KV<KV<DestinationT, ResourceId>, ResourceId> entry : resultsToFinalFilenames) {
-          KV<DestinationT, ResourceId> res = entry.getKey();
-          c.output(KV.of(res.getKey(), entry.getValue().toString()));
-        }
-      }
-    }
-  }
-
-  private static class GatherBundlesPerWindowFn<T> extends DoFn<T, List<T>> {
-    @Nullable private transient Multimap<BoundedWindow, T> bundles = null;
-
-    @StartBundle
-    public void startBundle() {
-      bundles = ArrayListMultimap.create();
-    }
-
-    @ProcessElement
-    public void process(ProcessContext c, BoundedWindow w) {
-      bundles.put(w, c.element());
-    }
-
-    @FinishBundle
-    public void finishBundle(FinishBundleContext c) throws Exception {
-      for (BoundedWindow w : bundles.keySet()) {
-        c.output(Lists.newArrayList(bundles.get(w)), w.maxTimestamp(), w);
-      }
     }
   }
 }
