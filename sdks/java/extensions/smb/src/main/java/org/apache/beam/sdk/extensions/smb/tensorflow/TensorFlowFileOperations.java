@@ -34,8 +34,12 @@ import org.tensorflow.example.Example;
  */
 public class TensorFlowFileOperations extends FileOperations<Example> {
 
-  public TensorFlowFileOperations(Compression compression) {
+  private TensorFlowFileOperations(Compression compression) {
     super(compression);
+  }
+
+  public static TensorFlowFileOperations of(Compression compression) {
+    return new TensorFlowFileOperations(compression);
   }
 
   @Override

@@ -176,7 +176,7 @@ public class SinkBenchmark {
     final SMBFilenamePolicy jsonPolicy =
         new SMBFilenamePolicy(
             FileSystems.matchNewResource(sinkOptions.getJsonDestination(), true), ".json");
-    JsonFileOperations jsonOps = new JsonFileOperations(Compression.UNCOMPRESSED);
+    JsonFileOperations jsonOps = JsonFileOperations.of(Compression.UNCOMPRESSED);
     final SortedBucketSink<String, TableRow> jsonSink =
         new SortedBucketSink<>(jsonMetadata, jsonPolicy, jsonOps, tempDirectory);
 
