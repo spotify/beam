@@ -58,23 +58,23 @@ public class SMBFilenamePolicyTest {
 
     // Test valid shard-bucket combination
     Assert.assertEquals(
-        fileAssignment.forBucket(BucketShardId.of(5, 1), metadata, Compression.UNCOMPRESSED),
+        fileAssignment.forBucket(BucketShardId.of(5, 1), metadata),
         resolveFile(destination, "bucket-00005-of-00008-shard-00001-of-00003", SUFFIX));
 
     Assert.assertEquals(
-        fileAssignment.forBucket(BucketShardId.ofNullKey(1), metadata, Compression.UNCOMPRESSED),
+        fileAssignment.forBucket(BucketShardId.ofNullKey(1), metadata),
         resolveFile(destination, "bucket-null-keys-shard-00001-of-00003", SUFFIX));
 
     // Test invalid shard-bucket combinations
     Assert.assertThrows(
         IllegalArgumentException.class,
         () ->
-            fileAssignment.forBucket(BucketShardId.of(100, 1), metadata, Compression.UNCOMPRESSED));
+            fileAssignment.forBucket(BucketShardId.of(100, 1), metadata));
 
     Assert.assertThrows(
         IllegalArgumentException.class,
         () ->
-            fileAssignment.forBucket(BucketShardId.of(2, 100), metadata, Compression.UNCOMPRESSED));
+            fileAssignment.forBucket(BucketShardId.of(2, 100), metadata));
   }
 
   @Test
@@ -103,7 +103,7 @@ public class SMBFilenamePolicyTest {
     Assert.assertTrue(
         policy
             .forTempFiles(tmpDstResource)
-            .forBucket(BucketShardId.of(5, 1), metadata, Compression.UNCOMPRESSED)
+            .forBucket(BucketShardId.of(5, 1), metadata)
             .toString()
             .matches(
                 tmpFileRegex(
@@ -115,14 +115,14 @@ public class SMBFilenamePolicyTest {
         () ->
             testFilenamePolicy(destination)
                 .forTempFiles(tmpDstResource)
-                .forBucket(BucketShardId.of(100, 1), metadata, Compression.UNCOMPRESSED));
+                .forBucket(BucketShardId.of(100, 1), metadata));
 
     Assert.assertThrows(
         IllegalArgumentException.class,
         () ->
             testFilenamePolicy(destination)
                 .forTempFiles(tmpDstResource)
-                .forBucket(BucketShardId.of(2, 100), metadata, Compression.UNCOMPRESSED));
+                .forBucket(BucketShardId.of(2, 100), metadata));
   }
 
   private static SMBFilenamePolicy testFilenamePolicy(TemporaryFolder folder) {
