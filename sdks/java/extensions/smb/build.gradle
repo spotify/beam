@@ -26,26 +26,17 @@ evaluationDependsOn(":runners:google-cloud-dataflow-java:worker:legacy-worker")
 dependencies {
   compile project(path: ":sdks:java:core", configuration: "shadow")
   compile project(":sdks:java:extensions:sorter")
-  compile library.java.vendored_guava_20_0
+  compile library.java.vendored_guava_26_0_jre
 
-  // Required by sorter module
-  provided library.java.hadoop_mapreduce_client_core
-  provided library.java.hadoop_common
   // Required by TableRow JSON
   provided project(":sdks:java:io:google-cloud-platform")
   // Required by TensorFlow Example
   provided library.java.tensorflow_proto
 
-  testCompile project(path: ":sdks:java:core", configuration: "shadowTest")
-  testCompile project(":runners:direct-java")
-  testCompile project(":sdks:java:testing:test-utils")
-
   testCompile library.java.hamcrest_core
   testCompile library.java.hamcrest_library
   testCompile library.java.junit
   testRuntimeOnly project(":runners:direct-java")
-
-  compile project(":runners:google-cloud-dataflow-java")
 
   task skewSinkBenchmark(type: JavaExec) {
     dependsOn ":runners:google-cloud-dataflow-java:worker:shadowJar"
