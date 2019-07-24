@@ -316,7 +316,7 @@ public class SortedBucketSource<FinalKeyT>
       this.filenameSuffix = filenameSuffix;
       this.fileOperations = fileOperations;
 
-      this.fileAssignment = new FileAssignment(filenamePrefix, filenameSuffix);
+      this.fileAssignment = new SMBFilenamePolicy(filenamePrefix, filenameSuffix).forDestination();
     }
 
     private BucketedInput(
@@ -366,8 +366,7 @@ public class SortedBucketSource<FinalKeyT>
       for (int i = bucketId; i < numBucketsInSource; i += leastNumBuckets) {
         for (int j = 0; j < numShards; j++) {
           final ResourceId file =
-              fileAssignment.forBucket(
-                  BucketShardId.of(i, j), metadata, fileOperations.getCompression());
+              fileAssignment.forBucket(BucketShardId.of(i, j), metadata);
           try {
             iterators.add(fileOperations.iterator(file));
           } catch (Exception e) {

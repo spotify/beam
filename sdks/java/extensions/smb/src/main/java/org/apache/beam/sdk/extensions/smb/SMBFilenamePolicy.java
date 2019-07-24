@@ -19,7 +19,6 @@ package org.apache.beam.sdk.extensions.smb;
 
 import java.io.Serializable;
 import java.util.concurrent.atomic.AtomicLong;
-import org.apache.beam.sdk.io.Compression;
 import org.apache.beam.sdk.io.fs.ResolveOptions.StandardResolveOptions;
 import org.apache.beam.sdk.io.fs.ResourceId;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.annotations.VisibleForTesting;
@@ -50,7 +49,7 @@ public final class SMBFilenamePolicy implements Serializable {
   }
 
   FileAssignment forDestination() {
-    return new FileAssignment(filenamePrefix, filenameSuffix);
+    return new FileAssignment(filenamePrefix, filenameSuffix, false);
   }
 
   FileAssignment forTempFiles(ResourceId tempDirectory) {
@@ -74,7 +73,7 @@ public final class SMBFilenamePolicy implements Serializable {
 
     private static final String NULL_KEYS_BUCKET_TEMPLATE = "null-keys";
     private static final String NUMERIC_BUCKET_TEMPLATE = "%05d-of-%05d";
-    private static final String BUCKET_SHARD_TEMPLATE = "bucket-%s-shard-%05d-of-%05d%s%s";
+    private static final String BUCKET_SHARD_TEMPLATE = "bucket-%s-shard-%05d-of-%05d%s";
     private static final String METADATA_FILENAME = "metadata.json";
     private static final DateTimeFormatter TEMPFILE_TIMESTAMP =
         DateTimeFormat.forPattern("yyyy-MM-dd_HH-mm-ss-");
@@ -89,11 +88,7 @@ public final class SMBFilenamePolicy implements Serializable {
       this.doTimestampFiles = doTimestampFiles;
     }
 
-    FileAssignment(ResourceId filenamePrefix, String filenameSuffix) {
-      this(filenamePrefix, filenameSuffix, false);
-    }
-
-    ResourceId forBucket(BucketShardId id, BucketMetadata<?, ?> metadata, Compression compression) {
+    ResourceId forBucket(BucketShardId id, BucketMetadata<?, ?> metadata) {
       Preconditions.checkArgument(
           id.getBucketId() < metadata.getNumBuckets(),
           "Can't assign a filename for bucketShardId %s: max number of buckets is %s",
@@ -118,8 +113,7 @@ public final class SMBFilenamePolicy implements Serializable {
               bucketName,
               id.getShardId(),
               metadata.getNumShards(),
-              filenameSuffix,
-              compression.getSuggestedSuffix());
+              filenameSuffix);
       return filenamePrefix.resolve(timestamp + filename, StandardResolveOptions.RESOLVE_FILE);
     }
 
