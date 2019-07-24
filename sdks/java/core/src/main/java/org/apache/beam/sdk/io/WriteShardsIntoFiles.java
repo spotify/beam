@@ -17,6 +17,7 @@
  */
 package org.apache.beam.sdk.io;
 
+import java.io.Serializable;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -38,6 +39,7 @@ import org.apache.beam.sdk.transforms.View;
 import org.apache.beam.sdk.transforms.WithKeys;
 import org.apache.beam.sdk.transforms.windowing.BoundedWindow;
 import org.apache.beam.sdk.transforms.windowing.GlobalWindow;
+import org.apache.beam.sdk.transforms.windowing.PaneInfo;
 import org.apache.beam.sdk.values.KV;
 import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.PCollectionView;
@@ -60,17 +62,24 @@ public class WriteShardsIntoFiles<ShardedKeyT, UserT, DestinationT>
     return null;
   }
 
-  public abstract static class WriteShardsIntoTempFilesFn<ShardedKeyT, UserT, DestinationT, OutputT>
+  public interface ToFinalFilename<ShardedKeyT, DestinationT> extends Serializable {
+    ResourceId apply(ShardedKeyT shardedKey,
+                     DestinationT destination,
+                     BoundedWindow window,
+                     PaneInfo pane) throws Exception;
+  }
+
+  public static class WriteShardsIntoTempFilesFn<ShardedKeyT, UserT, DestinationT, OutputT>
       extends DoFn<KV<ShardedKeyT, Iterable<UserT>>, KV<KV<DestinationT, ResourceId>, ResourceId>> {
+    private final ToFinalFilename<ShardedKeyT, DestinationT> toFinalFilename;
     private final FileBasedSink.WriteOperation<DestinationT, OutputT> writeOperation;
 
-    protected WriteShardsIntoTempFilesFn(
+    public WriteShardsIntoTempFilesFn(
+        ToFinalFilename<ShardedKeyT, DestinationT> toFinalFilename,
         FileBasedSink.WriteOperation<DestinationT, OutputT> writeOperation) {
+      this.toFinalFilename = toFinalFilename;
       this.writeOperation = writeOperation;
     }
-
-    protected abstract ResourceId getDestination(
-        ProcessContext c, BoundedWindow window, DestinationT destination) throws Exception;
 
     @ProcessElement
     public void processElement(ProcessContext c, BoundedWindow window) throws Exception {
@@ -111,8 +120,9 @@ public class WriteShardsIntoFiles<ShardedKeyT, UserT, DestinationT>
           throw e;
         }
 
-        ResourceId destination = getDestination(c, window, entry.getKey());
-        c.output(KV.of(KV.of(entry.getKey(), writer.getOutputFile()), destination));
+        ResourceId finalFileName = toFinalFilename.apply(
+            c.element().getKey(), entry.getKey(), window, c.pane());
+        c.output(KV.of(KV.of(entry.getKey(), writer.getOutputFile()), finalFileName));
       }
     }
 

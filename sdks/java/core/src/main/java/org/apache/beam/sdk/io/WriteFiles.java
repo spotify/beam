@@ -34,6 +34,7 @@ import org.apache.beam.sdk.coders.CannotProvideCoderException;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.coders.Coder.NonDeterministicException;
 import org.apache.beam.sdk.coders.KvCoder;
+import org.apache.beam.sdk.coders.NullableCoder;
 import org.apache.beam.sdk.coders.ShardedKeyCoder;
 import org.apache.beam.sdk.coders.VarIntCoder;
 import org.apache.beam.sdk.io.FileBasedSink.DynamicDestinations;
@@ -433,10 +434,7 @@ public abstract class WriteFiles<UserT, DestinationT, OutputT>
               // shard numbers are assigned together to both the spilled and non-spilled files in
               // finalize.
               .apply("GroupUnwritten", GroupByKey.create())
-              .apply(
-                  "WriteUnwritten",
-                  ParDo.of(new WriteShardsIntoTempFilesFn(writeOperation, numShardsView))
-                      .withSideInputs(getSideInputs()))
+              .apply("WriteUnwritten", new WriteShardsIntoTempFiles(numShardsView))
               .setCoder(
                   KvCoder.of(
                       KvCoder.of(destinationCoder, ResourceIdCoder.of()), ResourceIdCoder.of()));
@@ -651,9 +649,7 @@ public abstract class WriteFiles<UserT, DestinationT, OutputT>
           .setCoder(KvCoder.of(ShardedKeyCoder.of(VarIntCoder.of()), input.getCoder()))
           .apply("GroupIntoShards", GroupByKey.create())
           .apply(
-              "WriteShardsIntoTempFiles",
-              ParDo.of(new WriteShardsIntoTempFilesFn(writeOperation, numShardsView))
-                  .withSideInputs(getSideInputs()))
+              "WriteShardsIntoTempFiles", new WriteShardsIntoTempFiles(numShardsView))
           .setCoder(
               KvCoder.of(KvCoder.of(destinationCoder, ResourceIdCoder.of()), ResourceIdCoder.of()));
     }
@@ -727,42 +723,63 @@ public abstract class WriteFiles<UserT, DestinationT, OutputT>
     }
   }
 
-  private class WriteShardsIntoTempFilesFn
-      extends WriteShardsIntoFiles.WriteShardsIntoTempFilesFn<
-          ShardedKey<Integer>, UserT, DestinationT, OutputT> {
+  private class WriteShardsIntoTempFiles
+      extends PTransform<
+      PCollection<KV<ShardedKey<Integer>, Iterable<UserT>>>,
+      PCollection<KV<KV<DestinationT, ResourceId>, ResourceId>>> {
     private final PCollectionView<Integer> numShardsView;
 
-    private WriteShardsIntoTempFilesFn(
-        FileBasedSink.WriteOperation<DestinationT, OutputT> writeOperation,
-        PCollectionView<Integer> numShardsView) {
-      super(writeOperation);
+    private WriteShardsIntoTempFiles(PCollectionView<Integer> numShardsView) {
       this.numShardsView = numShardsView;
     }
 
     @Override
-    protected ResourceId getDestination(
-        ProcessContext c, BoundedWindow window, DestinationT destination) throws Exception {
-      @Nullable Integer fixedNumShards;
-      if (numShardsView != null) {
-        fixedNumShards = c.sideInput(numShardsView);
-      } else if (getNumShardsProvider() != null) {
-        fixedNumShards = getNumShardsProvider().get();
-      } else {
-        fixedNumShards = null;
+    public PCollection<KV<KV<DestinationT, ResourceId>, ResourceId>> expand(
+        PCollection<KV<ShardedKey<Integer>, Iterable<UserT>>> input) {
+      Coder<Iterable<UserT>> valueCoder = ((KvCoder<ShardedKey<Integer>, Iterable<UserT>>) input.getCoder()).getValueCoder();
+      return input
+          .apply(ParDo.of(new WithNumShards()).withSideInputs(getSideInputs()))
+          .setCoder(KvCoder.of(KvCoder.of(VarIntCoder.of(), NullableCoder.of(VarIntCoder.of())), valueCoder))
+          .apply(ParDo.of(
+              new WriteShardsIntoFiles.WriteShardsIntoTempFilesFn<KV<Integer, Integer>, UserT, DestinationT, OutputT>(
+                  new ToFinalFilenameFn(), writeOperation)).withSideInputs(getSideInputs()));
+    }
+
+    private class WithNumShards
+        extends DoFn<KV<ShardedKey<Integer>, Iterable<UserT>>, KV<KV<Integer, Integer>, Iterable<UserT>>> {
+      @ProcessElement
+      public void processElement(ProcessContext c) {
+
+        @Nullable Integer fixedNumShards;
+        if (numShardsView != null) {
+          fixedNumShards = c.sideInput(numShardsView);
+        } else if (getNumShardsProvider() != null) {
+          fixedNumShards = getNumShardsProvider().get();
+        } else {
+          fixedNumShards = null;
+        }
+        int shard = c.element().getKey().getShardNumber();
+        c.output(KV.of(KV.of(shard, fixedNumShards), c.element().getValue()));
       }
-      int shard = c.element().getKey().getShardNumber();
-      checkArgument(
-          shard != UNKNOWN_SHARDNUM,
-          "Shard should have been set, but is unset for element %s",
-          c.element());
-      FileResult<DestinationT> fileResult =
-          new FileResult<>(null, shard, window, c.pane(), destination);
-      List<KV<KV<DestinationT, ResourceId>, ResourceId>> destinations =
-          writeOperation.finalizeDestination(
-              destination, window, fixedNumShards, Collections.singletonList(fileResult));
-      checkArgument(
-          destinations.size() == 1, "Number of destinations %s != 1", destinations.size());
-      return destinations.iterator().next().getValue();
+    }
+
+    private class ToFinalFilenameFn implements WriteShardsIntoFiles.ToFinalFilename<KV<Integer, Integer>, DestinationT> {
+      @Override
+      public ResourceId apply(KV<Integer, Integer> shardedKey, DestinationT destination, BoundedWindow window, PaneInfo pane) throws Exception {
+        int shard = shardedKey.getKey();
+        Integer numShards = shardedKey.getValue();
+        checkArgument(
+            shard != UNKNOWN_SHARDNUM,
+            "Shard should have been set, but is unset for element");
+        FileResult<DestinationT> fileResult =
+            new FileResult<>(null, shard, window, pane, destination);
+        List<KV<KV<DestinationT, ResourceId>, ResourceId>> destinations =
+            writeOperation.finalizeDestination(
+                destination, window, numShards, Collections.singletonList(fileResult));
+        checkArgument(
+            destinations.size() == 1, "Number of destinations %s != 1", destinations.size());
+        return destinations.iterator().next().getValue();
+      }
     }
   }
 }
