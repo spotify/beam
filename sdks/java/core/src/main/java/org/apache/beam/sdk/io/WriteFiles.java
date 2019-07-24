@@ -747,13 +747,14 @@ public abstract class WriteFiles<UserT, DestinationT, OutputT>
   }
 
   // TODO: pull out, parameterize ShardedKey
-  private class WriteShardsIntoTempFilesFn
-      extends DoFn<KV<ShardedKey<Integer>, Iterable<UserT>>, KV<KV<DestinationT, ResourceId>, ResourceId>> {
-    private final PCollectionView<Integer> numShardsView;
+  private abstract class WriteShardsIntoTempFilesFn2<ShardedKeyT>
+      extends DoFn<KV<ShardedKeyT, Iterable<UserT>>, KV<KV<DestinationT, ResourceId>, ResourceId>> {
 
-    private WriteShardsIntoTempFilesFn(PCollectionView<Integer> numShardsView) {
-      this.numShardsView = numShardsView;
-    }
+    protected abstract ResourceId getDestination(
+        ResourceId tempFilename,
+        ProcessContext c,
+        BoundedWindow window,
+        DestinationT destination) throws Exception;
 
     @ProcessElement
     public void processElement(ProcessContext c, BoundedWindow window) throws Exception {
@@ -793,26 +794,47 @@ public abstract class WriteFiles<UserT, DestinationT, OutputT>
           throw e;
         }
 
-        int shard = c.element().getKey().getShardNumber();
-        checkArgument(
-            shard != UNKNOWN_SHARDNUM,
-            "Shard should have been set, but is unset for element %s",
-            c.element());
-        @Nullable Integer fixedNumShards;
-        if (numShardsView != null) {
-          fixedNumShards = c.sideInput(numShardsView);
-        } else if (getNumShardsProvider() != null) {
-          fixedNumShards = getNumShardsProvider().get();
-        } else {
-          fixedNumShards = null;
-        }
-        FileResult<DestinationT> fileResult =
-            new FileResult<>(writer.getOutputFile(), shard, window, c.pane(), entry.getKey());
-        List<KV<KV<DestinationT, ResourceId>, ResourceId>> destinations =
-            writeOperation.finalizeDestination(
-                entry.getKey(), window, fixedNumShards, Collections.singletonList(fileResult));
-        destinations.forEach(c::output);
+        ResourceId destination = getDestination(
+            writer.getOutputFile(), c, window, entry.getKey());
+        c.output(KV.of(KV.of(entry.getKey(), writer.getOutputFile()), destination));
       }
+    }
+  }
+
+  private class WriteShardsIntoTempFilesFn
+      extends WriteShardsIntoTempFilesFn2<ShardedKey<Integer>> {
+    private final PCollectionView<Integer> numShardsView;
+    private WriteShardsIntoTempFilesFn(PCollectionView<Integer> numShardsView) {
+      this.numShardsView = numShardsView;
+    }
+
+    @Override
+    protected ResourceId getDestination(
+        ResourceId tempFilename,
+        ProcessContext c,
+        BoundedWindow window,
+        DestinationT destination) throws Exception {
+      @Nullable Integer fixedNumShards;
+      if (numShardsView != null) {
+        fixedNumShards = c.sideInput(numShardsView);
+      } else if (getNumShardsProvider() != null) {
+        fixedNumShards = getNumShardsProvider().get();
+      } else {
+        fixedNumShards = null;
+      }
+      int shard = c.element().getKey().getShardNumber();
+      checkArgument(
+          shard != UNKNOWN_SHARDNUM,
+          "Shard should have been set, but is unset for element %s",
+          c.element());
+      FileResult<DestinationT> fileResult =
+          new FileResult<>(tempFilename, shard, window, c.pane(), destination);
+      List<KV<KV<DestinationT, ResourceId>, ResourceId>> destinations =
+          writeOperation.finalizeDestination(
+              destination, window, fixedNumShards, Collections.singletonList(fileResult));
+      checkArgument(
+          destinations.size() == 1, "Number of destinations %s != 1", destinations.size());
+      return destinations.iterator().next().getValue();
     }
   }
 
