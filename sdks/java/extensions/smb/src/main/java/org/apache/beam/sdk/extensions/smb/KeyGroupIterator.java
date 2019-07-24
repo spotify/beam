@@ -22,8 +22,8 @@ import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.function.Function;
 import org.apache.beam.sdk.values.KV;
-import org.apache.beam.vendor.guava.v20_0.com.google.common.collect.Iterators;
-import org.apache.beam.vendor.guava.v20_0.com.google.common.collect.PeekingIterator;
+import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.collect.Iterators;
+import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.collect.PeekingIterator;
 
 // FIXME: current limitation: must exhaust Iterator<ValueT> before starting the next key group
 class KeyGroupIterator<KeyT, ValueT> implements Iterator<KV<KeyT, Iterator<ValueT>>> {

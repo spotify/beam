@@ -18,7 +18,7 @@
 package org.apache.beam.sdk.extensions.smb;
 
 import java.io.Serializable;
-import org.apache.beam.vendor.guava.v20_0.com.google.common.base.Supplier;
+import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.base.Supplier;
 
 /** A {@link Serializable} version of {@link Supplier}. */
 public interface SerializableSupplier<T> extends Supplier<T>, Serializable {}

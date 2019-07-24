@@ -37,7 +37,7 @@ import org.apache.beam.sdk.io.AvroIO;
 import org.apache.beam.sdk.io.Compression;
 import org.apache.beam.sdk.io.FileIO;
 import org.apache.beam.sdk.io.SerializableAvroCodecFactory;
-import org.apache.beam.vendor.guava.v20_0.com.google.common.base.Supplier;
+import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.base.Supplier;
 
 /** {@link FileOperations} implementation for Avro records. */
 // TODO: figure out generic vs reflect, recordClass vs schema, compression, meta, etc.
