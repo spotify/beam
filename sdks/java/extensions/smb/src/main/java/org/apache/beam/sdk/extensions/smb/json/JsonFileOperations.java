@@ -35,9 +35,12 @@ import org.apache.beam.sdk.io.gcp.bigquery.TableRowJsonCoder;
 
 /** {@link FileOperations} implementation for BigQuery {@link TableRow} JSON records. */
 public class JsonFileOperations extends FileOperations<TableRow> {
-
-  public JsonFileOperations(Compression compression) {
+  private JsonFileOperations(Compression compression) {
     super(compression);
+  }
+
+  public static JsonFileOperations of(Compression compression) {
+    return new JsonFileOperations(compression);
   }
 
   @Override

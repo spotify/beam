@@ -19,7 +19,6 @@ package org.apache.beam.sdk.extensions.smb;
 
 import org.apache.beam.sdk.extensions.smb.BucketMetadata.HashType;
 import org.apache.beam.sdk.extensions.smb.SMBFilenamePolicy.FileAssignment;
-import org.apache.beam.sdk.io.Compression;
 import org.apache.beam.sdk.io.LocalResources;
 import org.apache.beam.sdk.io.fs.ResolveOptions.StandardResolveOptions;
 import org.apache.beam.sdk.io.fs.ResourceId;
@@ -68,13 +67,11 @@ public class SMBFilenamePolicyTest {
     // Test invalid shard-bucket combinations
     Assert.assertThrows(
         IllegalArgumentException.class,
-        () ->
-            fileAssignment.forBucket(BucketShardId.of(100, 1), metadata));
+        () -> fileAssignment.forBucket(BucketShardId.of(100, 1), metadata));
 
     Assert.assertThrows(
         IllegalArgumentException.class,
-        () ->
-            fileAssignment.forBucket(BucketShardId.of(2, 100), metadata));
+        () -> fileAssignment.forBucket(BucketShardId.of(2, 100), metadata));
   }
 
   @Test

@@ -26,6 +26,7 @@ import java.util.Optional;
 import org.apache.avro.Schema;
 import org.apache.avro.Schema.Field;
 import org.apache.avro.Schema.Type;
+import org.apache.avro.file.CodecFactory;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.beam.sdk.coders.AvroCoder;
@@ -121,7 +122,8 @@ public class MixedSourcesEndToEndTest {
                 avroMetadata,
                 LocalResources.fromFile(sourceFolder1.getRoot(), true),
                 LocalResources.fromFile(tmpFolder1.getRoot(), true),
-                GR_USER_SCHEMA));
+                GR_USER_SCHEMA,
+                CodecFactory.snappyCodec()));
 
     pipeline1.run().waitUntilFinish();
 

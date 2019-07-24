@@ -18,6 +18,7 @@
 package org.apache.beam.sdk.extensions.smb.avro;
 
 import org.apache.avro.Schema;
+import org.apache.avro.file.CodecFactory;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.specific.SpecificRecordBase;
 import org.apache.beam.sdk.extensions.smb.SortedBucketIO;
@@ -33,22 +34,28 @@ public class AvroSortedBucketIO {
       AvroBucketMetadata<KeyT, GenericRecord> bucketingMetadata,
       ResourceId outputDirectory,
       ResourceId tempDirectory,
-      Schema schema) {
+      Schema schema,
+      CodecFactory codec) {
     return SortedBucketIO.write(
-        bucketingMetadata, outputDirectory, ".avro", tempDirectory, AvroFileOperations.of(schema));
+        bucketingMetadata,
+        outputDirectory,
+        ".avro",
+        tempDirectory,
+        AvroFileOperations.of(schema, codec));
   }
 
   public static <KeyT, ValueT extends SpecificRecordBase> SortedBucketSink<KeyT, ValueT> sink(
       AvroBucketMetadata<KeyT, ValueT> bucketingMetadata,
       ResourceId outputDirectory,
       ResourceId tempDirectory,
-      Class<ValueT> recordClass) {
+      Class<ValueT> recordClass,
+      CodecFactory codec) {
     return SortedBucketIO.write(
         bucketingMetadata,
         outputDirectory,
         ".avro",
         tempDirectory,
-        AvroFileOperations.of(recordClass));
+        AvroFileOperations.of(recordClass, codec));
   }
 
   @SuppressWarnings("unchecked")

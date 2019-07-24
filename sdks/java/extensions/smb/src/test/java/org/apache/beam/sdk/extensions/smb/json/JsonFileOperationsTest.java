@@ -40,7 +40,7 @@ public class JsonFileOperationsTest {
 
   @Test
   public void test() throws Exception {
-    final JsonFileOperations fileOperations = new JsonFileOperations(Compression.UNCOMPRESSED);
+    final JsonFileOperations fileOperations = JsonFileOperations.of(Compression.UNCOMPRESSED);
     final ResourceId file =
         fromFolder(output).resolve("file.json", ResolveOptions.StandardResolveOptions.RESOLVE_FILE);
 

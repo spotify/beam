@@ -47,7 +47,7 @@ public class TensorFlowFileOperationsTest {
   @Test
   public void test() throws Exception {
     final TensorFlowFileOperations fileOperations =
-        new TensorFlowFileOperations(Compression.UNCOMPRESSED);
+        TensorFlowFileOperations.of(Compression.UNCOMPRESSED);
     final ResourceId file =
         fromFolder(output)
             .resolve("file.tfrecords", ResolveOptions.StandardResolveOptions.RESOLVE_FILE);
