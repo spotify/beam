@@ -63,10 +63,9 @@ public class WriteShardsIntoFiles<ShardedKeyT, UserT, DestinationT>
   }
 
   public interface ToFinalFilename<ShardedKeyT, DestinationT> extends Serializable {
-    ResourceId apply(ShardedKeyT shardedKey,
-                     DestinationT destination,
-                     BoundedWindow window,
-                     PaneInfo pane) throws Exception;
+    ResourceId apply(
+        ShardedKeyT shardedKey, DestinationT destination, BoundedWindow window, PaneInfo pane)
+        throws Exception;
   }
 
   public static class WriteShardsIntoTempFilesFn<ShardedKeyT, UserT, DestinationT, OutputT>
@@ -120,8 +119,8 @@ public class WriteShardsIntoFiles<ShardedKeyT, UserT, DestinationT>
           throw e;
         }
 
-        ResourceId finalFileName = toFinalFilename.apply(
-            c.element().getKey(), entry.getKey(), window, c.pane());
+        ResourceId finalFileName =
+            toFinalFilename.apply(c.element().getKey(), entry.getKey(), window, c.pane());
         c.output(KV.of(KV.of(entry.getKey(), writer.getOutputFile()), finalFileName));
       }
     }
@@ -156,30 +155,32 @@ public class WriteShardsIntoFiles<ShardedKeyT, UserT, DestinationT>
   }
 
   public static class FinalizeTempFiles<UserT, OutputT, DestinationT>
-    extends PTransform<PCollection<KV<KV<DestinationT, ResourceId>, ResourceId>>, WriteFilesResult<DestinationT>> {
+      extends PTransform<
+          PCollection<KV<KV<DestinationT, ResourceId>, ResourceId>>,
+          WriteFilesResult<DestinationT>> {
     @Nullable private final PCollectionView<Integer> numShardsView;
-    @Nullable  private final ValueProvider<Integer> numShardsProvider;
+    @Nullable private final ValueProvider<Integer> numShardsProvider;
     private final boolean windowedWrites;
-    private final List<PCollectionView<?>> sideInputs;
     private final FileBasedSink.WriteOperation<DestinationT, OutputT> writeOperation;
     private final Coder<DestinationT> destinationCoder;
 
-    public FinalizeTempFiles(@Nullable PCollectionView<Integer> numShardsView,
-                             @Nullable ValueProvider<Integer> numShardsProvider,
-                             boolean windowedWrites,
-                             List<PCollectionView<?>> sideInputs,
-                             FileBasedSink.WriteOperation<DestinationT, OutputT> writeOperation,
-                             Coder<DestinationT> destinationCoder) {
+    public FinalizeTempFiles(
+        @Nullable PCollectionView<Integer> numShardsView,
+        @Nullable ValueProvider<Integer> numShardsProvider,
+        boolean windowedWrites,
+        List<PCollectionView<?>> sideInputs,
+        FileBasedSink.WriteOperation<DestinationT, OutputT> writeOperation,
+        Coder<DestinationT> destinationCoder) {
       this.numShardsView = numShardsView;
       this.numShardsProvider = numShardsProvider;
       this.windowedWrites = windowedWrites;
-      this.sideInputs = sideInputs;
       this.writeOperation = writeOperation;
       this.destinationCoder = destinationCoder;
     }
 
     @Override
-    public WriteFilesResult<DestinationT> expand(PCollection<KV<KV<DestinationT, ResourceId>, ResourceId>> input) {
+    public WriteFilesResult<DestinationT> expand(
+        PCollection<KV<KV<DestinationT, ResourceId>, ResourceId>> input) {
       return input
           .apply("GatherTempFileResults", new GatherResults<>())
           .apply("FinalizeTempFileBundles", new FinalizeTempFileBundles());
@@ -234,18 +235,20 @@ public class WriteShardsIntoFiles<ShardedKeyT, UserT, DestinationT>
     }
 
     private class FinalizeTempFileBundles
-        extends PTransform<PCollection<List<KV<KV<DestinationT, ResourceId>, ResourceId>>>, WriteFilesResult<DestinationT>> {
+        extends PTransform<
+            PCollection<List<KV<KV<DestinationT, ResourceId>, ResourceId>>>,
+            WriteFilesResult<DestinationT>> {
       @Override
       public WriteFilesResult<DestinationT> expand(
           PCollection<List<KV<KV<DestinationT, ResourceId>, ResourceId>>> input) {
 
-        List<PCollectionView<?>> finalizeSideInputs = Lists.newArrayList(sideInputs);
+        List<PCollectionView<?>> sideInputs = Lists.newArrayList();
         if (numShardsView != null) {
-          finalizeSideInputs.add(numShardsView);
+          sideInputs.add(numShardsView);
         }
         PCollection<KV<DestinationT, String>> outputFilenames =
             input
-                .apply("Finalize", ParDo.of(new FinalizeFn()).withSideInputs(finalizeSideInputs))
+                .apply("Finalize", ParDo.of(new FinalizeFn()).withSideInputs(sideInputs))
                 .setCoder(KvCoder.of(destinationCoder, StringUtf8Coder.of()))
                 // Reshuffle the filenames to make sure they are observable downstream
                 // only after each one is done finalizing.
@@ -258,7 +261,8 @@ public class WriteShardsIntoFiles<ShardedKeyT, UserT, DestinationT>
       }
 
       private class FinalizeFn
-          extends DoFn<List<KV<KV<DestinationT, ResourceId>, ResourceId>>, KV<DestinationT, String>> {
+          extends DoFn<
+              List<KV<KV<DestinationT, ResourceId>, ResourceId>>, KV<DestinationT, String>> {
         @ProcessElement
         public void process(ProcessContext c) throws Exception {
           getDynamicDestinations().setSideInputAccessorFromProcessContext(c);
@@ -276,7 +280,7 @@ public class WriteShardsIntoFiles<ShardedKeyT, UserT, DestinationT>
           List<KV<KV<DestinationT, ResourceId>, ResourceId>> resultsToFinalFilenames =
               fileResults.isEmpty()
                   ? writeOperation.finalizeDestination(
-                  defaultDest, GlobalWindow.INSTANCE, fixedNumShards, Collections.emptyList())
+                      defaultDest, GlobalWindow.INSTANCE, fixedNumShards, Collections.emptyList())
                   : fileResults;
           writeOperation.moveToOutputFiles(resultsToFinalFilenames);
           for (KV<KV<DestinationT, ResourceId>, ResourceId> entry : resultsToFinalFilenames) {
@@ -288,7 +292,7 @@ public class WriteShardsIntoFiles<ShardedKeyT, UserT, DestinationT>
 
       @SuppressWarnings("unchecked")
       private FileBasedSink.DynamicDestinations<UserT, DestinationT, OutputT>
-      getDynamicDestinations() {
+          getDynamicDestinations() {
         return (FileBasedSink.DynamicDestinations<UserT, DestinationT, OutputT>)
             writeOperation.getSink().getDynamicDestinations();
       }

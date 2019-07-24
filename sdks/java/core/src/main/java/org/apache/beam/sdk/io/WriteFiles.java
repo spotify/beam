@@ -343,8 +343,9 @@ public abstract class WriteFiles<UserT, DestinationT, OutputT>
                 "WriteShardedBundlesToTempFiles",
                 new WriteShardedBundlesToTempFiles(destinationCoder, numShardsView));
 
-    return tempFileResults
-        .apply("FinalizeTempFiles", new WriteShardsIntoFiles.FinalizeTempFiles<>(
+    return tempFileResults.apply(
+        "FinalizeTempFiles",
+        new WriteShardsIntoFiles.FinalizeTempFiles<>(
             numShardsView,
             getNumShardsProvider(),
             getWindowedWrites(),
@@ -648,8 +649,7 @@ public abstract class WriteFiles<UserT, DestinationT, OutputT>
                   .withSideInputs(shardingSideInputs))
           .setCoder(KvCoder.of(ShardedKeyCoder.of(VarIntCoder.of()), input.getCoder()))
           .apply("GroupIntoShards", GroupByKey.create())
-          .apply(
-              "WriteShardsIntoTempFiles", new WriteShardsIntoTempFiles(numShardsView))
+          .apply("WriteShardsIntoTempFiles", new WriteShardsIntoTempFiles(numShardsView))
           .setCoder(
               KvCoder.of(KvCoder.of(destinationCoder, ResourceIdCoder.of()), ResourceIdCoder.of()));
     }
@@ -725,8 +725,8 @@ public abstract class WriteFiles<UserT, DestinationT, OutputT>
 
   private class WriteShardsIntoTempFiles
       extends PTransform<
-      PCollection<KV<ShardedKey<Integer>, Iterable<UserT>>>,
-      PCollection<KV<KV<DestinationT, ResourceId>, ResourceId>>> {
+          PCollection<KV<ShardedKey<Integer>, Iterable<UserT>>>,
+          PCollection<KV<KV<DestinationT, ResourceId>, ResourceId>>> {
     private final PCollectionView<Integer> numShardsView;
 
     private WriteShardsIntoTempFiles(PCollectionView<Integer> numShardsView) {
@@ -736,17 +736,24 @@ public abstract class WriteFiles<UserT, DestinationT, OutputT>
     @Override
     public PCollection<KV<KV<DestinationT, ResourceId>, ResourceId>> expand(
         PCollection<KV<ShardedKey<Integer>, Iterable<UserT>>> input) {
-      Coder<Iterable<UserT>> valueCoder = ((KvCoder<ShardedKey<Integer>, Iterable<UserT>>) input.getCoder()).getValueCoder();
+      Coder<Iterable<UserT>> valueCoder =
+          ((KvCoder<ShardedKey<Integer>, Iterable<UserT>>) input.getCoder()).getValueCoder();
       return input
           .apply(ParDo.of(new WithNumShards()).withSideInputs(getSideInputs()))
-          .setCoder(KvCoder.of(KvCoder.of(VarIntCoder.of(), NullableCoder.of(VarIntCoder.of())), valueCoder))
-          .apply(ParDo.of(
-              new WriteShardsIntoFiles.WriteShardsIntoTempFilesFn<KV<Integer, Integer>, UserT, DestinationT, OutputT>(
-                  new ToFinalFilenameFn(), writeOperation)).withSideInputs(getSideInputs()));
+          .setCoder(
+              KvCoder.of(
+                  KvCoder.of(VarIntCoder.of(), NullableCoder.of(VarIntCoder.of())), valueCoder))
+          .apply(
+              ParDo.of(
+                      new WriteShardsIntoFiles.WriteShardsIntoTempFilesFn<
+                          KV<Integer, Integer>, UserT, DestinationT, OutputT>(
+                          new ToFinalFilenameFn(), writeOperation))
+                  .withSideInputs(getSideInputs()));
     }
 
     private class WithNumShards
-        extends DoFn<KV<ShardedKey<Integer>, Iterable<UserT>>, KV<KV<Integer, Integer>, Iterable<UserT>>> {
+        extends DoFn<
+            KV<ShardedKey<Integer>, Iterable<UserT>>, KV<KV<Integer, Integer>, Iterable<UserT>>> {
       @ProcessElement
       public void processElement(ProcessContext c) {
 
@@ -763,14 +770,19 @@ public abstract class WriteFiles<UserT, DestinationT, OutputT>
       }
     }
 
-    private class ToFinalFilenameFn implements WriteShardsIntoFiles.ToFinalFilename<KV<Integer, Integer>, DestinationT> {
+    private class ToFinalFilenameFn
+        implements WriteShardsIntoFiles.ToFinalFilename<KV<Integer, Integer>, DestinationT> {
       @Override
-      public ResourceId apply(KV<Integer, Integer> shardedKey, DestinationT destination, BoundedWindow window, PaneInfo pane) throws Exception {
+      public ResourceId apply(
+          KV<Integer, Integer> shardedKey,
+          DestinationT destination,
+          BoundedWindow window,
+          PaneInfo pane)
+          throws Exception {
         int shard = shardedKey.getKey();
         Integer numShards = shardedKey.getValue();
         checkArgument(
-            shard != UNKNOWN_SHARDNUM,
-            "Shard should have been set, but is unset for element");
+            shard != UNKNOWN_SHARDNUM, "Shard should have been set, but is unset for element");
         FileResult<DestinationT> fileResult =
             new FileResult<>(null, shard, window, pane, destination);
         List<KV<KV<DestinationT, ResourceId>, ResourceId>> destinations =
