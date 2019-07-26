@@ -45,12 +45,20 @@ public class TensorFlowFileOperationsTest {
   @Rule public final TemporaryFolder output = new TemporaryFolder();
 
   @Test
-  public void test() throws Exception {
-    final TensorFlowFileOperations fileOperations =
-        TensorFlowFileOperations.of(Compression.UNCOMPRESSED);
+  public void testUncompressed() throws Exception {
+    test(Compression.UNCOMPRESSED);
+  }
+
+  @Test
+  public void testCompressed() throws Exception {
+    test(Compression.GZIP);
+  }
+
+  private void test(Compression compression) throws Exception {
+    final TensorFlowFileOperations fileOperations = TensorFlowFileOperations.of(compression);
     final ResourceId file =
         fromFolder(output)
-            .resolve("file.tfrecords", ResolveOptions.StandardResolveOptions.RESOLVE_FILE);
+            .resolve("file.tfrecord", ResolveOptions.StandardResolveOptions.RESOLVE_FILE);
 
     final List<Example> records =
         IntStream.range(0, 10)
