@@ -17,15 +17,20 @@
  */
 package org.apache.beam.sdk.extensions.smb;
 
+import java.io.IOException;
 import java.io.Serializable;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
 import java.util.Iterator;
+import java.util.List;
 import java.util.NoSuchElementException;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.io.Compression;
 import org.apache.beam.sdk.io.FileIO;
+import org.apache.beam.sdk.io.FileIO.ReadableFile;
 import org.apache.beam.sdk.io.FileSystems;
+import org.apache.beam.sdk.io.fs.EmptyMatchTreatment;
+import org.apache.beam.sdk.io.fs.MatchResult.Metadata;
 import org.apache.beam.sdk.io.fs.ResourceId;
 import org.apache.beam.sdk.util.MimeTypes;
 
@@ -38,26 +43,22 @@ public abstract class FileOperations<V> implements Serializable {
     this.compression = compression;
   }
 
-  public Compression getCompression() {
-    return compression;
-  }
-
   public abstract Reader<V> createReader();
 
   public abstract FileIO.Sink<V> createSink();
 
   public abstract Coder<V> getCoder();
 
-  public Iterator<V> iterator(ResourceId file) throws Exception {
-    Reader<V> reader = createReader();
-    Compression c =
-        compression == Compression.AUTO ? Compression.detect(file.getFilename()) : compression;
-    reader.prepareRead(c.readDecompressed(FileSystems.open(file)));
+  public final Iterator<V> iterator(ResourceId resourceId) throws Exception {
+    final ReadableFile readableFile = toReadableFile(resourceId);
+
+    final Reader<V> reader = createReader();
+    reader.prepareRead(readableFile.open());
     return reader.iterator();
   }
 
   public Writer<V> createWriter() {
-    return new Writer<>(createSink());
+    return new Writer<>(createSink(), compression);
   }
 
   /** Sorted-bucket file reader. */
@@ -106,18 +107,20 @@ public abstract class FileOperations<V> implements Serializable {
 
     private final FileIO.Sink<V> sink;
     private transient WritableByteChannel channel;
+    private Compression compression;
 
-    public Writer(FileIO.Sink<V> sink) {
+    public Writer(FileIO.Sink<V> sink, Compression compression) {
       this.sink = sink;
+      this.compression = compression;
     }
 
     public String getMimeType() {
       return MimeTypes.BINARY;
     }
 
-    public void prepareWrite(WritableByteChannel channel) throws Exception {
-      this.channel = channel;
-      sink.open(channel);
+    public final void prepareWrite(WritableByteChannel channel) throws Exception {
+      this.channel = compression.writeCompressed(channel);
+      sink.open(this.channel);
     }
 
     public void write(V value) throws Exception {
@@ -128,6 +131,22 @@ public abstract class FileOperations<V> implements Serializable {
     public void close() throws Exception {
       sink.flush();
       channel.close();
+    }
+  }
+
+  private ReadableFile toReadableFile(ResourceId resourceId) {
+    try {
+      final List<Metadata> metadata =
+          FileSystems.match(resourceId.toString(), EmptyMatchTreatment.DISALLOW).metadata();
+
+      return new ReadableFile(
+          metadata.get(0),
+          compression == Compression.AUTO
+              ? Compression.detect(resourceId.getFilename())
+              : compression);
+    } catch (IOException e) {
+      throw new RuntimeException(
+          String.format("Exception fetching metadata for %s", resourceId), e);
     }
   }
 }
