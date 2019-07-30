@@ -26,29 +26,48 @@ import org.apache.beam.sdk.values.TupleTag;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.base.Preconditions;
 import org.tensorflow.example.Example;
 
+/** Abstracts SMB sources and sinks for TensorFlow Example records. */
 public class TensorFlowBucketIO {
+  private static final String DEFAULT_SUFFIX = ".tfrecord";
 
   public static <KeyT> SortedBucketSink<KeyT, Example> sink(
-      TensorFlowMetadata<KeyT> bucketingMetata,
+      TensorFlowMetadata<KeyT> bucketingMetadata,
       ResourceId outputDirectory,
       ResourceId tempDirectory,
       Compression compression) {
+    return sink(bucketingMetadata, outputDirectory, tempDirectory, compression, null);
+  }
+
+  public static <KeyT> SortedBucketSink<KeyT, Example> sink(
+      TensorFlowMetadata<KeyT> bucketingMetadata,
+      ResourceId outputDirectory,
+      ResourceId tempDirectory,
+      Compression compression,
+      String suffix) {
     Preconditions.checkArgument(
         compression != Compression.AUTO, "AUTO compression is not supported for writing");
     return SortedBucketIO.write(
-        bucketingMetata,
+        bucketingMetadata,
         outputDirectory,
-        ".tfrecord" + compression.getSuggestedSuffix(),
+        suffix != null ? suffix : DEFAULT_SUFFIX + compression.getSuggestedSuffix(),
         tempDirectory,
         TensorFlowFileOperations.of(compression));
   }
 
   public static <KeyT> BucketedInput<KeyT, Example> source(
       TupleTag<Example> tupleTag, ResourceId filenamePrefix, Compression compression) {
+    return source(tupleTag, filenamePrefix, compression, null);
+  }
+
+  public static <KeyT> BucketedInput<KeyT, Example> source(
+      TupleTag<Example> tupleTag,
+      ResourceId filenamePrefix,
+      Compression compression,
+      String suffix) {
     return new BucketedInput<>(
         tupleTag,
         filenamePrefix,
-        ".tfrecord" + compression.getSuggestedSuffix(),
+        suffix != null ? suffix : DEFAULT_SUFFIX + compression.getSuggestedSuffix(),
         TensorFlowFileOperations.of(compression));
   }
 }

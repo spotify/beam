@@ -39,8 +39,17 @@ public class JsonFileOperationsTest {
   @Rule public final TemporaryFolder output = new TemporaryFolder();
 
   @Test
-  public void test() throws Exception {
-    final JsonFileOperations fileOperations = JsonFileOperations.of(Compression.UNCOMPRESSED);
+  public void testUncompressed() throws Exception {
+    test(Compression.UNCOMPRESSED);
+  }
+
+  @Test
+  public void testCompression() throws Exception {
+    test(Compression.GZIP);
+  }
+
+  private void test(Compression compression) throws Exception {
+    final JsonFileOperations fileOperations = JsonFileOperations.of(compression);
     final ResourceId file =
         fromFolder(output).resolve("file.json", ResolveOptions.StandardResolveOptions.RESOLVE_FILE);
 
@@ -48,6 +57,7 @@ public class JsonFileOperationsTest {
         IntStream.range(0, 10)
             .mapToObj(i -> new TableRow().set("user", String.format("user%02d", i)).set("age", i))
             .collect(Collectors.toList());
+
     final FileOperations.Writer<TableRow> writer = fileOperations.createWriter();
     writer.prepareWrite(FileSystems.create(file, writer.getMimeType()));
     for (TableRow record : records) {

@@ -28,28 +28,46 @@ import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.base.Preconditio
 
 /** Abstracts SMB sources and sinks for JSON records. */
 public class JsonSortedBucketIO {
+  private static final String DEFAULT_SUFFIX = ".json";
 
   public static <KeyT> SortedBucketSink<KeyT, TableRow> sink(
       JsonBucketMetadata<KeyT> bucketingMetadata,
       ResourceId outputDirectory,
       ResourceId tempDirectory,
       Compression compression) {
+    return sink(bucketingMetadata, outputDirectory, tempDirectory, compression, null);
+  }
+
+  public static <KeyT> SortedBucketSink<KeyT, TableRow> sink(
+      JsonBucketMetadata<KeyT> bucketingMetadata,
+      ResourceId outputDirectory,
+      ResourceId tempDirectory,
+      Compression compression,
+      String suffix) {
     Preconditions.checkArgument(
         compression != Compression.AUTO, "AUTO compression is not supported for writing");
     return SortedBucketIO.write(
         bucketingMetadata,
         outputDirectory,
-        ".json" + compression.getSuggestedSuffix(),
+        suffix != null ? suffix : DEFAULT_SUFFIX + compression.getSuggestedSuffix(),
         tempDirectory,
         JsonFileOperations.of(compression));
   }
 
   public static <KeyT> BucketedInput<KeyT, TableRow> source(
       TupleTag<TableRow> tupleTag, ResourceId filenamePrefix, Compression compression) {
+    return source(tupleTag, filenamePrefix, compression, null);
+  }
+
+  public static <KeyT> BucketedInput<KeyT, TableRow> source(
+      TupleTag<TableRow> tupleTag,
+      ResourceId filenamePrefix,
+      Compression compression,
+      String suffix) {
     return new BucketedInput<>(
         tupleTag,
         filenamePrefix,
-        ".json" + compression.getSuggestedSuffix(),
+        suffix != null ? suffix : DEFAULT_SUFFIX + compression.getSuggestedSuffix(),
         JsonFileOperations.of(compression));
   }
 }
