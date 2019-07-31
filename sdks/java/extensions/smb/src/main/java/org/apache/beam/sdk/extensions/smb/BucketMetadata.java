@@ -88,7 +88,7 @@ public abstract class BucketMetadata<K, V> implements Serializable {
   @JsonIgnore
   Coder<K> getKeyCoder() throws CannotProvideCoderException, NonDeterministicException {
     @SuppressWarnings("unchecked")
-    Coder<K> coder = (Coder<K>) coderOverrides().get(getKeyClass());
+    Coder<K> coder = (Coder<K>) coderOverrides().get(keyClass);
     if (coder == null) {
       coder = CoderRegistry.createDefault().getCoder(keyClass);
     }

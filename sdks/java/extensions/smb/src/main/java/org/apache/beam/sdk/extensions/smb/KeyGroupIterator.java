@@ -22,6 +22,7 @@ import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.function.Function;
 import org.apache.beam.sdk.values.KV;
+import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.base.Preconditions;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.collect.Iterators;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.collect.PeekingIterator;
 
@@ -87,8 +88,6 @@ class KeyGroupIterator<KeyT, ValueT> implements Iterator<KV<KeyT, Iterator<Value
   }
 
   private void checkState() {
-    if (currentGroup != null) {
-      throw new IllegalStateException("Previous Iterator<ValueT> not fully iterated");
-    }
+    Preconditions.checkState(currentGroup == null, "Previous Iterator<ValueT> not fully iterated");
   }
 }
