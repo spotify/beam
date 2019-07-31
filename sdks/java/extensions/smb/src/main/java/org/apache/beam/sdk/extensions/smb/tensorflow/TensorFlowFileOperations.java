@@ -26,6 +26,7 @@ import org.apache.beam.sdk.extensions.smb.FileOperations;
 import org.apache.beam.sdk.io.Compression;
 import org.apache.beam.sdk.io.FileIO;
 import org.apache.beam.sdk.io.TFRecordIO;
+import org.apache.beam.sdk.util.MimeTypes;
 import org.tensorflow.example.Example;
 
 /**
@@ -35,7 +36,7 @@ import org.tensorflow.example.Example;
 public class TensorFlowFileOperations extends FileOperations<Example> {
 
   private TensorFlowFileOperations(Compression compression) {
-    super(compression);
+    super(compression, MimeTypes.BINARY);
   }
 
   public static TensorFlowFileOperations of(Compression compression) {

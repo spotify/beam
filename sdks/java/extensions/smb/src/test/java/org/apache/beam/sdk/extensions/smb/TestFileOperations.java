@@ -27,11 +27,12 @@ import org.apache.beam.sdk.coders.StringUtf8Coder;
 import org.apache.beam.sdk.io.Compression;
 import org.apache.beam.sdk.io.FileIO;
 import org.apache.beam.sdk.io.TextIO;
+import org.apache.beam.sdk.util.MimeTypes;
 
 class TestFileOperations extends FileOperations<String> {
 
   TestFileOperations() {
-    super(Compression.UNCOMPRESSED);
+    super(Compression.UNCOMPRESSED, MimeTypes.TEXT);
   }
 
   @Override

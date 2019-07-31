@@ -28,7 +28,6 @@ import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.generic.GenericRecordBuilder;
 import org.apache.beam.sdk.extensions.smb.FileOperations;
 import org.apache.beam.sdk.io.AvroGeneratedUser;
-import org.apache.beam.sdk.io.FileSystems;
 import org.apache.beam.sdk.io.fs.ResolveOptions.StandardResolveOptions;
 import org.apache.beam.sdk.io.fs.ResourceId;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.collect.Lists;
@@ -66,8 +65,7 @@ public class AvroFileOperationsTest {
                         .set("age", i)
                         .build())
             .collect(Collectors.toList());
-    final FileOperations.Writer<GenericRecord> writer = fileOperations.createWriter();
-    writer.prepareWrite(FileSystems.create(file, writer.getMimeType()));
+    final FileOperations.Writer<GenericRecord> writer = fileOperations.createWriter(file);
     for (GenericRecord record : records) {
       writer.write(record);
     }
@@ -96,8 +94,7 @@ public class AvroFileOperationsTest {
                         .setFavoriteNumber(i)
                         .build())
             .collect(Collectors.toList());
-    final FileOperations.Writer<AvroGeneratedUser> writer = fileOperations.createWriter();
-    writer.prepareWrite(FileSystems.create(file, writer.getMimeType()));
+    final FileOperations.Writer<AvroGeneratedUser> writer = fileOperations.createWriter(file);
     for (AvroGeneratedUser record : records) {
       writer.write(record);
     }

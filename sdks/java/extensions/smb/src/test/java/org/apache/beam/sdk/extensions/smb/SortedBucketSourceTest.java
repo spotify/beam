@@ -229,11 +229,10 @@ public class SortedBucketSourceTest {
             FileSystems.create(fileAssignment.forMetadata(), "application/json")));
 
     // Write bucket files
+    final TestFileOperations fileOperations = new TestFileOperations();
     for (Map.Entry<BucketShardId, List<String>> entry : input.entrySet()) {
-      Writer<String> writer = new TestFileOperations().createWriter();
-      writer.prepareWrite(
-          FileSystems.create(
-              fileAssignment.forBucket(entry.getKey(), metadata), writer.getMimeType()));
+      Writer<String> writer =
+          fileOperations.createWriter(fileAssignment.forBucket(entry.getKey(), metadata));
       for (String s : entry.getValue()) {
         writer.write(s);
       }

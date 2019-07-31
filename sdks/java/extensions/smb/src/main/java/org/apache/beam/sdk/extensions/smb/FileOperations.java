@@ -30,15 +30,16 @@ import org.apache.beam.sdk.io.FileIO.ReadableFile;
 import org.apache.beam.sdk.io.FileSystems;
 import org.apache.beam.sdk.io.fs.MatchResult.Metadata;
 import org.apache.beam.sdk.io.fs.ResourceId;
-import org.apache.beam.sdk.util.MimeTypes;
 
 /** Abstracts IO operations sorted-bucket files. */
 public abstract class FileOperations<V> implements Serializable {
 
   private final Compression compression;
+  private final String mimeType;
 
-  protected FileOperations(Compression compression) {
+  protected FileOperations(Compression compression, String mimeType) {
     this.compression = compression;
+    this.mimeType = mimeType;
   }
 
   protected abstract Reader<V> createReader();
@@ -55,8 +56,10 @@ public abstract class FileOperations<V> implements Serializable {
     return reader.iterator();
   }
 
-  public Writer<V> createWriter() {
-    return new Writer<>(createSink(), compression);
+  public Writer<V> createWriter(ResourceId resourceId) throws Exception {
+    Writer<V> writer = new Writer<>(createSink(), compression);
+    writer.prepareWrite(FileSystems.create(resourceId, mimeType));
+    return writer;
   }
 
   /** Sorted-bucket file reader. */
@@ -112,11 +115,7 @@ public abstract class FileOperations<V> implements Serializable {
       this.compression = compression;
     }
 
-    public String getMimeType() {
-      return MimeTypes.BINARY;
-    }
-
-    public final void prepareWrite(WritableByteChannel channel) throws Exception {
+    private void prepareWrite(WritableByteChannel channel) throws Exception {
       this.channel = compression.writeCompressed(channel);
       sink.open(this.channel);
     }
