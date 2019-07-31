@@ -122,6 +122,7 @@ public class MixedSourcesEndToEndTest {
                 avroMetadata,
                 LocalResources.fromFile(sourceFolder1.getRoot(), true),
                 LocalResources.fromFile(tmpFolder1.getRoot(), true),
+                null,
                 GR_USER_SCHEMA,
                 CodecFactory.snappyCodec()));
 
@@ -148,6 +149,7 @@ public class MixedSourcesEndToEndTest {
                 jsonMetadata,
                 LocalResources.fromFile(sourceFolder2.getRoot(), true),
                 LocalResources.fromFile(tmpFolder2.getRoot(), true),
+                null,
                 Compression.UNCOMPRESSED));
 
     pipeline2.run().waitUntilFinish();
@@ -158,11 +160,15 @@ public class MixedSourcesEndToEndTest {
         SortedBucketIO.read(String.class)
             .of(
                 AvroSortedBucketIO.source(
-                    lhsTag, GR_USER_SCHEMA, LocalResources.fromFile(sourceFolder1.getRoot(), true)))
+                    lhsTag,
+                    GR_USER_SCHEMA,
+                    LocalResources.fromFile(sourceFolder1.getRoot(), true),
+                    null))
             .and(
                 JsonSortedBucketIO.source(
                     rhsTag,
                     LocalResources.fromFile(sourceFolder2.getRoot(), true),
+                    null,
                     Compression.UNCOMPRESSED))
             .build();
 

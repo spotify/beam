@@ -70,11 +70,13 @@ public class SourceBenchmark {
                 AvroSortedBucketIO.source(
                     lhsTag,
                     AvroGeneratedUser.class,
-                    FileSystems.matchNewResource(sourceOptions.getAvroSource(), true)))
+                    FileSystems.matchNewResource(sourceOptions.getAvroSource(), true),
+                    null))
             .and(
                 JsonSortedBucketIO.source(
                     rhsTag,
                     FileSystems.matchNewResource(sourceOptions.getJsonSource(), true),
+                    null,
                     Compression.UNCOMPRESSED))
             .build();
 
