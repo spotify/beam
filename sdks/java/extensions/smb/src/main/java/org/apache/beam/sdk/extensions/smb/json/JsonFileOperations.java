@@ -44,12 +44,12 @@ public class JsonFileOperations extends FileOperations<TableRow> {
   }
 
   @Override
-  public Reader<TableRow> createReader() {
+  protected Reader<TableRow> createReader() {
     return new JsonReader();
   }
 
   @Override
-  public FileIO.Sink<TableRow> createSink() {
+  protected FileIO.Sink<TableRow> createSink() {
     return new FileIO.Sink<TableRow>() {
 
       private final ObjectMapper objectMapper = new ObjectMapper();
