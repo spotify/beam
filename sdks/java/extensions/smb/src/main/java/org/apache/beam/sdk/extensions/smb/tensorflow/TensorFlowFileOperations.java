@@ -43,12 +43,12 @@ public class TensorFlowFileOperations extends FileOperations<Example> {
   }
 
   @Override
-  public Reader<Example> createReader() {
+  protected Reader<Example> createReader() {
     return new TfReader();
   }
 
   @Override
-  public FileIO.Sink<Example> createSink() {
+  protected FileIO.Sink<Example> createSink() {
     return new FileIO.Sink<Example>() {
       private final TFRecordIO.Sink sink = TFRecordIO.sink();
 

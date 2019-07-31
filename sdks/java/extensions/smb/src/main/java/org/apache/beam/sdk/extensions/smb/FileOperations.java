@@ -22,14 +22,12 @@ import java.io.Serializable;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
 import java.util.Iterator;
-import java.util.List;
 import java.util.NoSuchElementException;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.io.Compression;
 import org.apache.beam.sdk.io.FileIO;
 import org.apache.beam.sdk.io.FileIO.ReadableFile;
 import org.apache.beam.sdk.io.FileSystems;
-import org.apache.beam.sdk.io.fs.EmptyMatchTreatment;
 import org.apache.beam.sdk.io.fs.MatchResult.Metadata;
 import org.apache.beam.sdk.io.fs.ResourceId;
 import org.apache.beam.sdk.util.MimeTypes;
@@ -43,9 +41,9 @@ public abstract class FileOperations<V> implements Serializable {
     this.compression = compression;
   }
 
-  public abstract Reader<V> createReader();
+  protected abstract Reader<V> createReader();
 
-  public abstract FileIO.Sink<V> createSink();
+  protected abstract FileIO.Sink<V> createSink();
 
   public abstract Coder<V> getCoder();
 
@@ -109,7 +107,7 @@ public abstract class FileOperations<V> implements Serializable {
     private transient WritableByteChannel channel;
     private Compression compression;
 
-    public Writer(FileIO.Sink<V> sink, Compression compression) {
+    Writer(FileIO.Sink<V> sink, Compression compression) {
       this.sink = sink;
       this.compression = compression;
     }
@@ -136,11 +134,10 @@ public abstract class FileOperations<V> implements Serializable {
 
   private ReadableFile toReadableFile(ResourceId resourceId) {
     try {
-      final List<Metadata> metadata =
-          FileSystems.match(resourceId.toString(), EmptyMatchTreatment.DISALLOW).metadata();
+      final Metadata metadata = FileSystems.matchSingleFileSpec(resourceId.toString());
 
       return new ReadableFile(
-          metadata.get(0),
+          metadata,
           compression == Compression.AUTO
               ? Compression.detect(resourceId.getFilename())
               : compression);

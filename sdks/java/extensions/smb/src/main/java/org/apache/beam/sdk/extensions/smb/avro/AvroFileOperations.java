@@ -40,7 +40,6 @@ import org.apache.beam.sdk.io.SerializableAvroCodecFactory;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.base.Supplier;
 
 /** {@link FileOperations} implementation for Avro records. */
-// TODO: figure out generic vs reflect, recordClass vs schema, compression, meta, etc.
 public class AvroFileOperations<ValueT> extends FileOperations<ValueT> {
   private final Class<ValueT> recordClass;
   private final SerializableSchemaSupplier schemaSupplier;
@@ -76,13 +75,13 @@ public class AvroFileOperations<ValueT> extends FileOperations<ValueT> {
   }
 
   @Override
-  public Reader<ValueT> createReader() {
+  protected Reader<ValueT> createReader() {
     return new AvroReader<>(recordClass, schemaSupplier);
   }
 
   @SuppressWarnings("unchecked")
   @Override
-  public FileIO.Sink<ValueT> createSink() {
+  protected FileIO.Sink<ValueT> createSink() {
     final AvroIO.Sink<ValueT> sink =
         recordClass == null
             ? (AvroIO.Sink<ValueT>) AvroIO.sink(getSchema())
