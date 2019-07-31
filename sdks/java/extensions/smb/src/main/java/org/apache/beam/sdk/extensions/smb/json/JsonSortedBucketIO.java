@@ -31,43 +31,30 @@ public class JsonSortedBucketIO {
   private static final String DEFAULT_SUFFIX = ".json";
 
   public static <KeyT> SortedBucketSink<KeyT, TableRow> sink(
-      JsonBucketMetadata<KeyT> bucketingMetadata,
+      JsonBucketMetadata<KeyT> metadata,
       ResourceId outputDirectory,
       ResourceId tempDirectory,
+      String filenameSuffix,
       Compression compression) {
-    return sink(bucketingMetadata, outputDirectory, tempDirectory, compression, null);
-  }
-
-  public static <KeyT> SortedBucketSink<KeyT, TableRow> sink(
-      JsonBucketMetadata<KeyT> bucketingMetadata,
-      ResourceId outputDirectory,
-      ResourceId tempDirectory,
-      Compression compression,
-      String suffix) {
     Preconditions.checkArgument(
         compression != Compression.AUTO, "AUTO compression is not supported for writing");
     return SortedBucketIO.write(
-        bucketingMetadata,
+        metadata,
         outputDirectory,
-        suffix != null ? suffix : DEFAULT_SUFFIX + compression.getSuggestedSuffix(),
         tempDirectory,
+        filenameSuffix != null ? filenameSuffix : DEFAULT_SUFFIX + compression.getSuggestedSuffix(),
         JsonFileOperations.of(compression));
-  }
-
-  public static <KeyT> BucketedInput<KeyT, TableRow> source(
-      TupleTag<TableRow> tupleTag, ResourceId filenamePrefix, Compression compression) {
-    return source(tupleTag, filenamePrefix, compression, null);
   }
 
   public static <KeyT> BucketedInput<KeyT, TableRow> source(
       TupleTag<TableRow> tupleTag,
       ResourceId filenamePrefix,
-      Compression compression,
-      String suffix) {
+      String filenameSuffix,
+      Compression compression) {
     return new BucketedInput<>(
         tupleTag,
         filenamePrefix,
-        suffix != null ? suffix : DEFAULT_SUFFIX + compression.getSuggestedSuffix(),
+        filenameSuffix != null ? filenameSuffix : DEFAULT_SUFFIX + compression.getSuggestedSuffix(),
         JsonFileOperations.of(compression));
   }
 }

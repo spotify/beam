@@ -75,13 +75,13 @@ public class SortedBucketIO {
   }
 
   public static <K, V> SortedBucketSink<K, V> write(
-      BucketMetadata<K, V> bucketingMetadata,
+      BucketMetadata<K, V> metadata,
       ResourceId outputDirectory,
-      String filenameSuffix,
       ResourceId tempDirectory,
+      String filenameSuffix,
       FileOperations<V> fileOperations) {
     return new SortedBucketSink<>(
-        bucketingMetadata,
+        metadata,
         new SMBFilenamePolicy(outputDirectory, filenameSuffix),
         fileOperations,
         tempDirectory);

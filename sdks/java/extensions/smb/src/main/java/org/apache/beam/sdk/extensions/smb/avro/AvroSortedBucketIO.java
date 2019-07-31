@@ -29,44 +29,60 @@ import org.apache.beam.sdk.values.TupleTag;
 
 /** Abstracts SMB sources and sinks for Avro-typed values. */
 public class AvroSortedBucketIO {
+  private static final String DEFAULT_SUFFIX = ".avro";
 
   public static <KeyT> SortedBucketSink<KeyT, GenericRecord> sink(
-      AvroBucketMetadata<KeyT, GenericRecord> bucketingMetadata,
+      AvroBucketMetadata<KeyT, GenericRecord> metadata,
       ResourceId outputDirectory,
       ResourceId tempDirectory,
+      String filenameSuffix,
       Schema schema,
       CodecFactory codec) {
     return SortedBucketIO.write(
-        bucketingMetadata,
+        metadata,
         outputDirectory,
-        ".avro",
         tempDirectory,
+        filenameSuffix != null ? filenameSuffix : DEFAULT_SUFFIX,
         AvroFileOperations.of(schema, codec));
   }
 
   public static <KeyT, ValueT extends SpecificRecordBase> SortedBucketSink<KeyT, ValueT> sink(
-      AvroBucketMetadata<KeyT, ValueT> bucketingMetadata,
+      AvroBucketMetadata<KeyT, ValueT> metadata,
       ResourceId outputDirectory,
       ResourceId tempDirectory,
+      String filenameSuffix,
       Class<ValueT> recordClass,
       CodecFactory codec) {
     return SortedBucketIO.write(
-        bucketingMetadata,
+        metadata,
         outputDirectory,
-        ".avro",
         tempDirectory,
+        filenameSuffix != null ? filenameSuffix : DEFAULT_SUFFIX,
         AvroFileOperations.of(recordClass, codec));
   }
 
   @SuppressWarnings("unchecked")
   public static <KeyT> BucketedInput<KeyT, GenericRecord> source(
-      TupleTag<GenericRecord> tupleTag, Schema schema, ResourceId filenamePrefix) {
-    return new BucketedInput<>(tupleTag, filenamePrefix, ".avro", AvroFileOperations.of(schema));
+      TupleTag<GenericRecord> tupleTag,
+      Schema schema,
+      ResourceId filenamePrefix,
+      String filenameSuffix) {
+    return new BucketedInput<>(
+        tupleTag,
+        filenamePrefix,
+        filenameSuffix != null ? filenameSuffix : DEFAULT_SUFFIX,
+        AvroFileOperations.of(schema));
   }
 
   public static <KeyT, ValueT extends SpecificRecordBase> BucketedInput<KeyT, ValueT> source(
-      TupleTag<ValueT> tupleTag, Class<ValueT> recordClass, ResourceId filenamePrefix) {
+      TupleTag<ValueT> tupleTag,
+      Class<ValueT> recordClass,
+      ResourceId filenamePrefix,
+      String filenameSuffix) {
     return new BucketedInput<>(
-        tupleTag, filenamePrefix, ".avro", AvroFileOperations.of(recordClass));
+        tupleTag,
+        filenamePrefix,
+        filenameSuffix != null ? filenameSuffix : DEFAULT_SUFFIX,
+        AvroFileOperations.of(recordClass));
   }
 }
