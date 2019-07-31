@@ -44,6 +44,7 @@ public abstract class FileOperations<V> implements Serializable {
 
   protected abstract Reader<V> createReader();
 
+  // Delegate to FileIO.Sink<V> for writer logic
   protected abstract FileIO.Sink<V> createSink();
 
   public abstract Coder<V> getCoder();
@@ -57,7 +58,7 @@ public abstract class FileOperations<V> implements Serializable {
   }
 
   public Writer<V> createWriter(ResourceId resourceId) throws Exception {
-    Writer<V> writer = new Writer<>(createSink(), compression);
+    final Writer<V> writer = new Writer<>(createSink(), compression);
     writer.prepareWrite(FileSystems.create(resourceId, mimeType));
     return writer;
   }
