@@ -251,8 +251,7 @@ public class SortedBucketSink<K, V> extends PTransform<PCollection<V>, WriteResu
                               fileAssignment.forBucket(bucketShardId, bucketMetadata);
 
                           try (final FileOperations.Writer<V> writer =
-                              fileOperations.createWriter()) {
-                            writer.prepareWrite(FileSystems.create(tmpFile, writer.getMimeType()));
+                              fileOperations.createWriter(tmpFile)) {
                             records.forEach(
                                 kv -> {
                                   try {
@@ -369,10 +368,9 @@ public class SortedBucketSink<K, V> extends PTransform<PCollection<V>, WriteResu
         for (BucketShardId id : missingFiles) {
           final ResourceId dstFile = fileAssignment.forBucket(id, bucketMetadata);
 
-          try (final Writer<?> writer = fileOperations.createWriter()) {
-            writer.prepareWrite(FileSystems.create(dstFile, writer.getMimeType()));
+          try (final Writer<?> ignored = fileOperations.createWriter(dstFile)) {
+            c.output(KV.of(id, dstFile));
           }
-          c.output(KV.of(id, dstFile));
         }
 
         // Rename written files

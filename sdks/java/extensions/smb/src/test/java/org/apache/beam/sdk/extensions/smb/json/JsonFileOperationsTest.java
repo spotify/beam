@@ -26,7 +26,6 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.beam.sdk.extensions.smb.FileOperations;
 import org.apache.beam.sdk.io.Compression;
-import org.apache.beam.sdk.io.FileSystems;
 import org.apache.beam.sdk.io.fs.ResolveOptions;
 import org.apache.beam.sdk.io.fs.ResourceId;
 import org.junit.Assert;
@@ -58,8 +57,7 @@ public class JsonFileOperationsTest {
             .mapToObj(i -> new TableRow().set("user", String.format("user%02d", i)).set("age", i))
             .collect(Collectors.toList());
 
-    final FileOperations.Writer<TableRow> writer = fileOperations.createWriter();
-    writer.prepareWrite(FileSystems.create(file, writer.getMimeType()));
+    final FileOperations.Writer<TableRow> writer = fileOperations.createWriter(file);
     for (TableRow record : records) {
       writer.write(record);
     }

@@ -32,11 +32,12 @@ import org.apache.beam.sdk.io.Compression;
 import org.apache.beam.sdk.io.FileIO;
 import org.apache.beam.sdk.io.TextIO;
 import org.apache.beam.sdk.io.gcp.bigquery.TableRowJsonCoder;
+import org.apache.beam.sdk.util.MimeTypes;
 
 /** {@link FileOperations} implementation for BigQuery {@link TableRow} JSON records. */
 public class JsonFileOperations extends FileOperations<TableRow> {
   private JsonFileOperations(Compression compression) {
-    super(compression);
+    super(compression, compression == Compression.UNCOMPRESSED ? MimeTypes.TEXT : MimeTypes.BINARY);
   }
 
   public static JsonFileOperations of(Compression compression) {
