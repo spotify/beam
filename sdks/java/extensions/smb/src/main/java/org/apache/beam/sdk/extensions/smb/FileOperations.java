@@ -31,7 +31,12 @@ import org.apache.beam.sdk.io.FileSystems;
 import org.apache.beam.sdk.io.fs.MatchResult.Metadata;
 import org.apache.beam.sdk.io.fs.ResourceId;
 
-/** Abstracts IO operations sorted-bucket files. */
+/**
+ * Abstracts IO operations for file-based formats. Since the SMB algorithm doesn't support {@link
+ * org.apache.beam.sdk.io.Source} splitting, I/O operations must be abstracted at a per-record
+ * granularity. {@link Reader} and {@link Writer} must be {@link Serializable} to be used in {@link
+ * SortedBucketSource} and {@link SortedBucketSink} transforms.
+ */
 public abstract class FileOperations<V> implements Serializable {
 
   private final Compression compression;
@@ -63,7 +68,7 @@ public abstract class FileOperations<V> implements Serializable {
     return writer;
   }
 
-  /** Sorted-bucket file reader. */
+  /** Per-element file reader. */
   public abstract static class Reader<V> implements Serializable {
     public abstract void prepareRead(ReadableByteChannel channel) throws Exception;
 
@@ -104,7 +109,7 @@ public abstract class FileOperations<V> implements Serializable {
     }
   }
 
-  /** Sorted-bucket file writer. */
+  /** Per-element file writer. */
   public static class Writer<V> implements Serializable, AutoCloseable {
 
     private final FileIO.Sink<V> sink;

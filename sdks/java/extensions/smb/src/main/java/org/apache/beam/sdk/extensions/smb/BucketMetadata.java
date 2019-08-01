@@ -42,7 +42,19 @@ import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.hash.HashFunctio
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.hash.Hashing;
 
 /**
- * Represents metadata in a JSON-serializable format to be stored alongside sorted-bucket files.
+ * Represents metadata in a JSON-serializable format to be stored alongside sorted-bucket files in a
+ * {@link SortedBucketSink} transform, and read/checked for compatibility in a {@link
+ * SortedBucketSource} transform.
+ *
+ * <h3>Key encoding</h3>
+ *
+ * <p>{@link BucketMetadata} controls over how values {@code <V>} are mapped to a key type {@code
+ * <K>} (see: {@link #extractKey(Object)}), and how those bytes are encoded into {@code byte[]}
+ * (see: {@link #getKeyBytes(Object)}). Therefore, in order for two sources to be compatible in a
+ * {@link SortedBucketSource} transform, the {@link #keyClass} does not have to be the same, as long
+ * as the final byte encoding is equivalent. A {@link #coderOverrides()} method is provided for any
+ * encoding overrides: for example, in Avro sources the {@link CharSequence} type should be encoded
+ * as a UTF-8 string.
  *
  * @param <K> the type of the keys that values in a bucket are sorted with
  * @param <V> the type of the values in a bucket
@@ -128,9 +140,7 @@ public abstract class BucketMetadata<K, V> implements Serializable {
         && (Math.max(numBuckets, other.numBuckets) % Math.min(numBuckets, other.numBuckets) == 0);
   }
 
-  ////////////////////////////////////////
-  // Configuration
-  ////////////////////////////////////////
+  /* Configuration */
 
   public int getVersion() {
     return version;
@@ -152,9 +162,7 @@ public abstract class BucketMetadata<K, V> implements Serializable {
     return hashType;
   }
 
-  ////////////////////////////////////////
-  // Business logic
-  ////////////////////////////////////////
+  /* Business logic */
 
   byte[] getKeyBytes(V value) {
     final K key = extractKey(value);

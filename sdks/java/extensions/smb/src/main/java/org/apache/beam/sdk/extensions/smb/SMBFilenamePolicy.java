@@ -27,7 +27,14 @@ import org.joda.time.Instant;
 import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
 
-/** Naming policy for SMB files, on a per-bucket basis. */
+/**
+ * Naming policy for SMB files, similar to {@link
+ * org.apache.beam.sdk.io.FileBasedSink.FilenamePolicy}. File names are assigned uniquely per {@link
+ * BucketShardId}. This class functions differently for the initial write to temp files, and the
+ * move of those files to their final destination (see: {@link SortedBucketSink.WriteOperation}).
+ * This is because temp writes need to be idempotent in case of bundle failure, and are thus
+ * timestamped to ensure an uncorrupted result when a bundle succeeds.
+ */
 public final class SMBFilenamePolicy implements Serializable {
 
   private static final String TEMP_DIRECTORY_PREFIX = ".temp-beam";
@@ -68,7 +75,10 @@ public final class SMBFilenamePolicy implements Serializable {
     return tempId;
   }
 
-  /** A file name assigner based on a specific output directory and file suffix. */
+  /**
+   * A file name assigner based on a specific output directory and file suffix. Optionally prepends
+   * a timestamp to file names to ensure idempotence.
+   */
   public static class FileAssignment implements Serializable {
 
     private static final String NULL_KEYS_BUCKET_TEMPLATE = "null-keys";
