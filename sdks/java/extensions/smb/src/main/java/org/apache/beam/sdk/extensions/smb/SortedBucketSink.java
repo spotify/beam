@@ -57,9 +57,41 @@ import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.collect.Immutabl
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.collect.ImmutableMap;
 
 /**
- * {@code SortedBucketSink<K, V>} takes a {@code PCollection<V>}, groups it by key into buckets,
- * sort values by key within a bucket, and writes them to files. Each bucket can be further sharded
- * to reduce the impact of hot keys.
+ * A {@link PTransform} for writing a {@link PCollection} to file-based sink, where files represent
+ * "buckets" of elements deterministically assigned by {@link BucketMetadata} based on a key
+ * extraction function. The elements in each bucket are written in sorted order according to the
+ * same key.
+ *
+ * <p>This transform is intended to be used in conjunction with the {@link SortedBucketSource}
+ * transform. Any two datasets written with {@link SortedBucketSink} using the same bucketing scheme
+ * can be joined by simply sequentially reading and merging files, thus eliminating the shuffle
+ * required by {@link GroupByKey}-based transforms. This is ideal for datasets that will be written
+ * once and read many times with a predictable join key, i.e. user event data.
+ *
+ * <h3>Transform steps</h3>
+ *
+ * <p>{@link SortedBucketSink} re-uses existing {@link PTransform}s to map over each element,
+ * extract a {@code byte[]} representation of its sorting key using {@link
+ * BucketMetadata#getKeyBytes(Object)}, and assign it to an Integer bucket using {@link
+ * BucketMetadata#getBucketId(byte[])}. Next, a {@link GroupByKey} transform is applied to create a
+ * {@link PCollection} of {@code N} elements, where {@code N} is the number of buckets specified by
+ * {@link BucketMetadata#getNumBuckets()}, then a {@link SortValues} transform is used to sort
+ * elements within each bucket group. Finally, the write operation is performed, where each bucket
+ * is first written to a {@link SortedBucketSink#tempDirectory} and then copied to its final
+ * destination.
+ *
+ * <p>A JSON-serialized form of {@link BucketMetadata} is also written, which is required in order
+ * to join {@link SortedBucketSink}s using the {@link SortedBucketSource} transform.
+ *
+ * <h3>Bucketing properties and hot keys</h3>
+ *
+ * <p>Bucketing properties are specified in {@link BucketMetadata}. The number of buckets, {@code
+ * N}, must be a power of two and should be chosen such that each bucket can fit in a worker node's
+ * memory. Note that the {@link SortValues} transform will try to sort in-memory and fall back to an
+ * {@link ExternalSorter} if needed.
+ *
+ * <p>Each bucket can be further sharded to reduce the impact of hot keys, by specifying {@link
+ * BucketMetadata#getNumShards()}.
  *
  * @param <K> the type of the keys that values in a bucket are sorted with
  * @param <V> the type of the values in a bucket
@@ -147,7 +179,11 @@ public class SortedBucketSink<K, V> extends PTransform<PCollection<V>, WriteResu
     }
   }
 
-  /** The result of a {@link SortedBucketSink} transform. */
+  /**
+   * The result of a successfully completed {@link SortedBucketSink} transform. Holds {@link
+   * TupleTag} references to both the successfully written {@link BucketMetadata}, and to all
+   * successfully written {@link BucketShardId}s.
+   */
   public static class WriteResult implements POutput {
     private final Pipeline pipeline;
     private final PCollection<ResourceId> writtenMetadata;

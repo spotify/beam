@@ -65,12 +65,27 @@ import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.collect.Unmodifi
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.primitives.UnsignedBytes;
 
 /**
- * {@code SortedBucketSource<FinalKeyT>} takes multiple sorted-bucket sources written with {@link
- * SortedBucketSink}, reads key-values in matching buckets in a merge-sort style, and outputs
- * resulting value groups as {@link org.apache.beam.sdk.transforms.join.CoGbkResult}.
+ * A {@link PTransform} for co-grouping sources written using compatible {@link SortedBucketSink}
+ * transforms. It differs from {@link org.apache.beam.sdk.transforms.join.CoGroupByKey} because no
+ * shuffle step is required, since the source files are written in pre-sorted order. Instead,
+ * matching buckets' files are sequentially read in a merge-sort style, and outputs resulting value
+ * groups as {@link org.apache.beam.sdk.transforms.join.CoGbkResult}.
  *
- * @param <FinalKeyT> the type of the result keys, sources can have different key types as long as
- *     they can all be decoded as this type
+ * <h3>Source compatibility</h3>
+ *
+ * <p>Each of the {@link BucketedInput} sources must use the same key function and hashing scheme.
+ * Since {@link SortedBucketSink} writes an additional file representing {@link BucketMetadata},
+ * {@link SortedBucketSource} begins by reading each metadata file and using {@link
+ * BucketMetadata#isCompatibleWith(BucketMetadata)} to check compatibility.
+ *
+ * <p>The number of buckets, {@code N}, does not have to match across sources. Since that value is
+ * required be to a power of 2, all values of {@code N} are compatible, albeit requiring a fan-out
+ * from the source with smallest {@code N}.
+ *
+ * @param <FinalKeyT> the type of the result keys. Sources can have different key types as long as
+ *     they can all be decoded as this type (see: {@link BucketMetadata#getKeyCoder()} and are
+ *     bucketed using the same {@code byte[]} representation (see: {@link
+ *     BucketMetadata#getKeyBytes(Object)}.
  */
 public class SortedBucketSource<FinalKeyT>
     extends PTransform<PBegin, PCollection<KV<FinalKeyT, CoGbkResult>>> {

@@ -25,7 +25,13 @@ import org.apache.beam.sdk.coders.AtomicCoder;
 import org.apache.beam.sdk.coders.CoderException;
 import org.apache.beam.sdk.coders.VarIntCoder;
 
-/** Abstracts bucket and shard id in {@link SortedBucketIO}. */
+/**
+ * Abstracts bucket and shard id in {@link SortedBucketIO}.
+ *
+ * <h3>Null keys</h3>
+ *
+ * <p>Null keys are assigned a custom bucket ID of -1, separate from the rest of the bucketed data.
+ */
 @AutoValue
 public abstract class BucketShardId {
 
