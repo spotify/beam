@@ -42,11 +42,11 @@ import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.base.Supplier;
 
 /** {@link FileOperations} implementation for Avro records. */
 public class AvroFileOperations<ValueT> extends FileOperations<ValueT> {
+  private static final CodecFactory DEFAULT_CODEC = CodecFactory.snappyCodec();
+
   private final Class<ValueT> recordClass;
   private final SerializableSchemaSupplier schemaSupplier;
   private final SerializableAvroCodecFactory codec;
-
-  private static final CodecFactory DEFAULT_CODEC = CodecFactory.snappyCodec();
 
   private AvroFileOperations(Class<ValueT> recordClass, Schema schema, CodecFactory codec) {
     super(Compression.UNCOMPRESSED, MimeTypes.BINARY); // Avro has its own compression via codec

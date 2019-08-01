@@ -23,21 +23,17 @@ import com.google.api.services.bigquery.model.TableRow;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import org.apache.avro.file.CodecFactory;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.PipelineResult.State;
 import org.apache.beam.sdk.coders.CannotProvideCoderException;
 import org.apache.beam.sdk.extensions.smb.BucketMetadata;
-import org.apache.beam.sdk.extensions.smb.SMBFilenamePolicy;
 import org.apache.beam.sdk.extensions.smb.SortedBucketSink;
-import org.apache.beam.sdk.extensions.smb.avro.AvroBucketMetadata;
-import org.apache.beam.sdk.extensions.smb.avro.AvroFileOperations;
-import org.apache.beam.sdk.extensions.smb.json.JsonBucketMetadata;
-import org.apache.beam.sdk.extensions.smb.json.JsonFileOperations;
+import org.apache.beam.sdk.extensions.smb.avro.AvroSortedBucketIO;
+import org.apache.beam.sdk.extensions.smb.json.JsonSortedBucketIO;
 import org.apache.beam.sdk.io.AvroGeneratedUser;
 import org.apache.beam.sdk.io.Compression;
-import org.apache.beam.sdk.io.FileSystems;
 import org.apache.beam.sdk.io.GenerateSequence;
-import org.apache.beam.sdk.io.fs.ResourceId;
 import org.apache.beam.sdk.io.gcp.bigquery.TableRowJsonCoder;
 import org.apache.beam.sdk.options.Default;
 import org.apache.beam.sdk.options.PipelineOptions;
@@ -146,44 +142,30 @@ public class SinkBenchmark {
                                 .collect(Collectors.toList())))
             .setCoder(TableRowJsonCoder.of());
 
-    final ResourceId tempDirectory =
-        FileSystems.matchNewResource(sinkOptions.getTempLocation(), true);
+    final AvroSortedBucketIO.Write<CharSequence, AvroGeneratedUser> avroWrite =
+        AvroSortedBucketIO.write(CharSequence.class, "name", AvroGeneratedUser.class)
+            .to(sinkOptions.getAvroDestination())
+            .withTempDirectory(sinkOptions.getTempLocation())
+            .withNumBuckets(avroNumBuckets)
+            .withNumShards(avroNumShards)
+            .withHashType(BucketMetadata.HashType.MURMUR3_32)
+            .withFilenameSuffix(".avro")
+            .withCodec(CodecFactory.snappyCodec());
+    avroData.apply(avroWrite);
 
-    final AvroBucketMetadata<CharSequence, AvroGeneratedUser> avroMetadata =
-        new AvroBucketMetadata<>(
-            avroNumBuckets,
-            avroNumShards,
-            CharSequence.class,
-            BucketMetadata.HashType.MURMUR3_32,
-            "name");
-    final SMBFilenamePolicy avroPolicy =
-        new SMBFilenamePolicy(
-            FileSystems.matchNewResource(sinkOptions.getAvroDestination(), true), ".avro");
-    final AvroFileOperations<AvroGeneratedUser> avroOps =
-        AvroFileOperations.of(AvroGeneratedUser.class);
-    final SortedBucketSink<CharSequence, AvroGeneratedUser> avroSink =
-        new SortedBucketSink<>(avroMetadata, avroPolicy, avroOps, tempDirectory);
+    final JsonSortedBucketIO.Write<String> jsonWrite =
+        JsonSortedBucketIO.write(String.class, "user")
+            .to(sinkOptions.getJsonDestination())
+            .withTempDirectory(sinkOptions.getTempLocation())
+            .withNumBuckets(jsonNumBuckets)
+            .withNumShards(jsonNumShards)
+            .withHashType(BucketMetadata.HashType.MURMUR3_32)
+            .withFilenameSuffix(".json")
+            .withCompression(Compression.UNCOMPRESSED);
+    jsonData.apply(jsonWrite);
 
-    avroData.apply(avroSink);
-
-    final JsonBucketMetadata<String> jsonMetadata =
-        new JsonBucketMetadata<>(
-            jsonNumBuckets,
-            jsonNumShards,
-            String.class,
-            BucketMetadata.HashType.MURMUR3_32,
-            "user");
-    final SMBFilenamePolicy jsonPolicy =
-        new SMBFilenamePolicy(
-            FileSystems.matchNewResource(sinkOptions.getJsonDestination(), true), ".json");
-    JsonFileOperations jsonOps = JsonFileOperations.of(Compression.UNCOMPRESSED);
-    final SortedBucketSink<String, TableRow> jsonSink =
-        new SortedBucketSink<>(jsonMetadata, jsonPolicy, jsonOps, tempDirectory);
-
-    jsonData.apply(jsonSink);
-
-    long startTime = System.currentTimeMillis();
-    State state = pipeline.run().waitUntilFinish();
+    final long startTime = System.currentTimeMillis();
+    final State state = pipeline.run().waitUntilFinish();
     System.out.println(
         String.format(
             "SinkBenchmark finished with state %s in %d ms",

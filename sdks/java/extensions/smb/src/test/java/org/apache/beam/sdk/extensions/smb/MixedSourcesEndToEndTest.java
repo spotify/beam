@@ -34,9 +34,7 @@ import org.apache.beam.sdk.coders.IterableCoder;
 import org.apache.beam.sdk.coders.KvCoder;
 import org.apache.beam.sdk.coders.StringUtf8Coder;
 import org.apache.beam.sdk.extensions.smb.BucketMetadata.HashType;
-import org.apache.beam.sdk.extensions.smb.avro.AvroBucketMetadata;
 import org.apache.beam.sdk.extensions.smb.avro.AvroSortedBucketIO;
-import org.apache.beam.sdk.extensions.smb.json.JsonBucketMetadata;
 import org.apache.beam.sdk.extensions.smb.json.JsonSortedBucketIO;
 import org.apache.beam.sdk.io.Compression;
 import org.apache.beam.sdk.io.LocalResources;
@@ -101,9 +99,6 @@ public class MixedSourcesEndToEndTest {
   @Test
   @Category(NeedsRunner.class)
   public void testE2E() throws Exception {
-    final AvroBucketMetadata<ByteBuffer, GenericRecord> avroMetadata =
-        new AvroBucketMetadata<>(4, 3, ByteBuffer.class, HashType.MURMUR3_32, "name");
-
     pipeline1
         .apply(
             Create.of(
@@ -118,18 +113,16 @@ public class MixedSourcesEndToEndTest {
                     createUserGR("h", 8))
                 .withCoder(AvroCoder.of(GR_USER_SCHEMA)))
         .apply(
-            AvroSortedBucketIO.sink(
-                avroMetadata,
-                LocalResources.fromFile(sourceFolder1.getRoot(), true),
-                LocalResources.fromFile(tmpFolder1.getRoot(), true),
-                null,
-                GR_USER_SCHEMA,
-                CodecFactory.snappyCodec()));
+            AvroSortedBucketIO.write(ByteBuffer.class, "name", GR_USER_SCHEMA)
+                .to(sourceFolder1.getRoot().getPath())
+                .withTempDirectory(tmpFolder1.getRoot().getPath())
+                .withNumBuckets(8)
+                .withNumShards(4)
+                .withHashType(HashType.MURMUR3_32)
+                .withFilenameSuffix(".avro")
+                .withCodec(CodecFactory.snappyCodec()));
 
     pipeline1.run().waitUntilFinish();
-
-    final JsonBucketMetadata<String> jsonMetadata =
-        new JsonBucketMetadata<>(8, 4, String.class, HashType.MURMUR3_32, "name");
 
     pipeline2
         .apply(
@@ -145,12 +138,14 @@ public class MixedSourcesEndToEndTest {
                     createUserJson("i", "MX"))
                 .withCoder(TableRowJsonCoder.of()))
         .apply(
-            JsonSortedBucketIO.sink(
-                jsonMetadata,
-                LocalResources.fromFile(sourceFolder2.getRoot(), true),
-                LocalResources.fromFile(tmpFolder2.getRoot(), true),
-                null,
-                Compression.UNCOMPRESSED));
+            JsonSortedBucketIO.write(String.class, "name")
+                .to(sourceFolder2.getRoot().getPath())
+                .withTempDirectory(tmpFolder2.getRoot().getPath())
+                .withNumBuckets(8)
+                .withNumShards(4)
+                .withHashType(HashType.MURMUR3_32)
+                .withFilenameSuffix(".json")
+                .withCompression(Compression.UNCOMPRESSED));
 
     pipeline2.run().waitUntilFinish();
 

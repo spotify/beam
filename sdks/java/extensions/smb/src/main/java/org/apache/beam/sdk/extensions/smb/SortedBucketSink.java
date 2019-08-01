@@ -70,16 +70,19 @@ public class SortedBucketSink<K, V> extends PTransform<PCollection<V>, WriteResu
   private final SMBFilenamePolicy filenamePolicy;
   private final FileOperations<V> fileOperations;
   private final ResourceId tempDirectory;
+  private final int sorterMemoryMb;
 
   public SortedBucketSink(
       BucketMetadata<K, V> bucketMetadata,
       SMBFilenamePolicy filenamePolicy,
       FileOperations<V> fileOperations,
-      ResourceId tempDirectory) {
+      ResourceId tempDirectory,
+      int sorterMemoryMb) {
     this.bucketMetadata = bucketMetadata;
     this.filenamePolicy = filenamePolicy;
     this.fileOperations = fileOperations;
     this.tempDirectory = tempDirectory;
+    this.sorterMemoryMb = sorterMemoryMb;
   }
 
   @Override
@@ -98,7 +101,8 @@ public class SortedBucketSink<K, V> extends PTransform<PCollection<V>, WriteResu
             "SortValues",
             SortValues.create(
                 BufferedExternalSorter.options()
-                    .withExternalSorterType(ExternalSorter.Options.SorterType.NATIVE)))
+                    .withExternalSorterType(ExternalSorter.Options.SorterType.NATIVE)
+                    .withMemoryMB(sorterMemoryMb)))
         .apply(
             "WriteOperation",
             new WriteOperation<>(filenamePolicy, bucketMetadata, fileOperations, tempDirectory));

@@ -172,7 +172,7 @@ public class SortedBucketSinkTest {
     final SMBFilenamePolicy policy = new SMBFilenamePolicy(fromFolder(output), ".txt");
 
     final SortedBucketSink<String, String> sink =
-        new SortedBucketSink<>(metadata, policy, new TestFileOperations(), fromFolder(temp));
+        new SortedBucketSink<>(metadata, policy, new TestFileOperations(), fromFolder(temp), 1);
 
     @SuppressWarnings("deprecation")
     final Reshuffle.ViaRandomKey<String> reshuffle = Reshuffle.viaRandomKey();
