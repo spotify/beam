@@ -30,14 +30,13 @@ import org.apache.beam.sdk.coders.VarIntCoder;
  *
  * <h3>Null keys</h3>
  *
- * <p>Null keys are assigned a custom bucket ID of -1, separate from the rest of the bucketed data.
+ * <p>Null keys are assigned a bucket ID of -1, separate from the rest of the bucketed data. Note
+ * that this does not necessarily reflect the final filename: {@link SMBFilenamePolicy} can
+ * special-case this bucket ID.
  */
 @AutoValue
 public abstract class BucketShardId {
 
-  // An integer guaranteed to not overlap with existing bucket IDs, used specifically to separate
-  // out records with null keys. Note that this does not necessarily reflect the final filename:
-  // SMBFilenamePolicy can special-case this bucket ID.
   private static final int NULL_KEYS_BUCKET_ID = -1;
 
   public abstract int getBucketId();

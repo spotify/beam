@@ -32,10 +32,12 @@ import org.apache.beam.sdk.io.fs.MatchResult.Metadata;
 import org.apache.beam.sdk.io.fs.ResourceId;
 
 /**
- * Abstracts IO operations for file-based formats. Since the SMB algorithm doesn't support {@link
- * org.apache.beam.sdk.io.Source} splitting, I/O operations must be abstracted at a per-record
- * granularity. {@link Reader} and {@link Writer} must be {@link Serializable} to be used in {@link
- * SortedBucketSource} and {@link SortedBucketSink} transforms.
+ * Abstracts IO operations for file-based formats.
+ *
+ * <p>Since the SMB algorithm doesn't support {@link org.apache.beam.sdk.io.Source} splitting, I/O
+ * operations must be abstracted at a per-record granularity. {@link Reader} and {@link Writer} must
+ * be {@link Serializable} to be used in {@link SortedBucketSource} and {@link SortedBucketSink}
+ * transforms.
  */
 public abstract class FileOperations<V> implements Serializable {
 

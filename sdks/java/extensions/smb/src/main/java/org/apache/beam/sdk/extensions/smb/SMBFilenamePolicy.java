@@ -29,11 +29,13 @@ import org.joda.time.format.DateTimeFormatter;
 
 /**
  * Naming policy for SMB files, similar to {@link
- * org.apache.beam.sdk.io.FileBasedSink.FilenamePolicy}. File names are assigned uniquely per {@link
- * BucketShardId}. This class functions differently for the initial write to temp files, and the
- * move of those files to their final destination (see: {@link SortedBucketSink.WriteOperation}).
- * This is because temp writes need to be idempotent in case of bundle failure, and are thus
- * timestamped to ensure an uncorrupted result when a bundle succeeds.
+ * org.apache.beam.sdk.io.FileBasedSink.FilenamePolicy}.
+ *
+ * <p>File names are assigned uniquely per {@link BucketShardId}. This class functions differently
+ * for the initial write to temp files, and the move of those files to their final destination (see:
+ * {@link SortedBucketSink.WriteOperation}). This is because temp writes need to be idempotent in
+ * case of bundle failure, and are thus timestamped to ensure an uncorrupted write result when a
+ * bundle succeeds.
  */
 public final class SMBFilenamePolicy implements Serializable {
 
