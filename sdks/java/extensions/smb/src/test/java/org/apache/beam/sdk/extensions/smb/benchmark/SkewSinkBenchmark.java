@@ -20,16 +20,12 @@ package org.apache.beam.sdk.extensions.smb.benchmark;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import org.apache.avro.file.CodecFactory;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.extensions.smb.BucketMetadata;
-import org.apache.beam.sdk.extensions.smb.SMBFilenamePolicy;
-import org.apache.beam.sdk.extensions.smb.SortedBucketSink;
-import org.apache.beam.sdk.extensions.smb.avro.AvroBucketMetadata;
-import org.apache.beam.sdk.extensions.smb.avro.AvroFileOperations;
+import org.apache.beam.sdk.extensions.smb.avro.AvroSortedBucketIO;
 import org.apache.beam.sdk.io.AvroGeneratedUser;
-import org.apache.beam.sdk.io.FileSystems;
 import org.apache.beam.sdk.io.GenerateSequence;
-import org.apache.beam.sdk.io.fs.ResourceId;
 import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.options.PipelineOptionsFactory;
 import org.apache.beam.sdk.transforms.FlatMapElements;
@@ -119,25 +115,16 @@ public class SkewSinkBenchmark {
                                             .build())
                                 .collect(Collectors.toList())));
 
-    final ResourceId out = FileSystems.matchNewResource(sinkOptions.getOutputDir(), true);
-    final ResourceId temp =
-        FileSystems.matchNewResource(pipeline.getOptions().getTempLocation(), true);
-
-    final AvroBucketMetadata<CharSequence, AvroGeneratedUser> avroMetadata =
-        new AvroBucketMetadata<>(
-            sinkOptions.getNumBuckets(),
-            sinkOptions.getNumShards(),
-            CharSequence.class,
-            BucketMetadata.HashType.MURMUR3_32,
-            "name");
-
-    final SMBFilenamePolicy avroPolicy = new SMBFilenamePolicy(out, ".avro");
-    final AvroFileOperations<AvroGeneratedUser> avroOps =
-        AvroFileOperations.of(AvroGeneratedUser.class);
-    final SortedBucketSink<CharSequence, AvroGeneratedUser> avroSink =
-        new SortedBucketSink<>(avroMetadata, avroPolicy, avroOps, temp);
-
-    skewData.apply(avroSink);
+    final AvroSortedBucketIO.Write<CharSequence, AvroGeneratedUser> write =
+        AvroSortedBucketIO.write(CharSequence.class, "name", AvroGeneratedUser.class)
+            .to(sinkOptions.getOutputDir())
+            .withTempDirectory(sinkOptions.getTempLocation())
+            .withNumBuckets(sinkOptions.getNumBuckets())
+            .withNumShards(sinkOptions.getNumShards())
+            .withHashType(BucketMetadata.HashType.MURMUR3_32)
+            .withFilenameSuffix(".avro")
+            .withCodec(CodecFactory.snappyCodec());
+    skewData.apply(write);
 
     pipeline.run();
   }

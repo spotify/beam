@@ -17,6 +17,7 @@
  */
 package org.apache.beam.sdk.extensions.smb;
 
+import org.apache.beam.sdk.extensions.smb.BucketMetadata.HashType;
 import org.apache.beam.sdk.extensions.smb.SortedBucketSource.BucketedInput;
 import org.apache.beam.sdk.io.fs.ResourceId;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.collect.ImmutableList;
@@ -28,6 +29,11 @@ import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.collect.Immutabl
  * key-values in matching buckets are read in a merge-sort style, reducing shuffle.
  */
 public class SortedBucketIO {
+
+  public static final int DEFAULT_NUM_BUCKETS = 128;
+  public static final int DEFAULT_NUM_SHARDS = 1;
+  public static final HashType DEFAULT_HASH_TYPE = HashType.MURMUR3_128;
+  public static final int DEFAULT_SORTER_MEMORY_MB = 128;
 
   /** Builder for a {@link SortedBucketSource} for a given key class. */
   public static <K> ReadBuilder<K, ?, ?> read(Class<K> keyClass) {
@@ -79,11 +85,13 @@ public class SortedBucketIO {
       ResourceId outputDirectory,
       ResourceId tempDirectory,
       String filenameSuffix,
-      FileOperations<V> fileOperations) {
+      FileOperations<V> fileOperations,
+      int sorterMemoryMb) {
     return new SortedBucketSink<>(
         metadata,
         new SMBFilenamePolicy(outputDirectory, filenameSuffix),
         fileOperations,
-        tempDirectory);
+        tempDirectory,
+        sorterMemoryMb);
   }
 }
