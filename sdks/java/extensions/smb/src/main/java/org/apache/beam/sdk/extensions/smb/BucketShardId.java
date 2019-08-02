@@ -35,7 +35,7 @@ import org.apache.beam.sdk.coders.VarIntCoder;
  * special-case this bucket ID.
  */
 @AutoValue
-public abstract class BucketShardId {
+abstract class BucketShardId {
 
   private static final int NULL_KEYS_BUCKET_ID = -1;
 
