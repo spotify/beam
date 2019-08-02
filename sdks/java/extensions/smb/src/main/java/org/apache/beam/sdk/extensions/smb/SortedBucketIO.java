@@ -17,12 +17,17 @@
  */
 package org.apache.beam.sdk.extensions.smb;
 
+import java.util.Collections;
+import java.util.List;
+import java.util.stream.Collectors;
 import org.apache.beam.sdk.extensions.smb.BucketMetadata.HashType;
 import org.apache.beam.sdk.extensions.smb.SortedBucketSource.BucketedInput;
-import org.apache.beam.sdk.io.fs.ResourceId;
-import org.apache.beam.sdk.values.TupleTag;
+import org.apache.beam.sdk.transforms.PTransform;
+import org.apache.beam.sdk.transforms.join.CoGbkResult;
+import org.apache.beam.sdk.values.KV;
+import org.apache.beam.sdk.values.PBegin;
+import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.collect.ImmutableList;
-import org.tensorflow.example.Example;
 
 /**
  * Sorted-bucket files are {@code PCollection<V>}s written with {@link SortedBucketSink} that can be
@@ -37,67 +42,46 @@ public class SortedBucketIO {
   public static final HashType DEFAULT_HASH_TYPE = HashType.MURMUR3_128;
   public static final int DEFAULT_SORTER_MEMORY_MB = 128;
 
-  /** Builder for a {@link SortedBucketSource} for a given key class. */
-  public static <K> ReadBuilder<K, ?, ?> read(Class<K> keyClass) {
-    return new ReadBuilder<>(keyClass);
+  public static <K> CoGbkReadBuilder<K> read(Class<K> keyClass) {
+    return new CoGbkReadBuilder<>(keyClass);
   }
 
-  /**
-   * Builder for a typed two-way sorted-bucket source.
-   *
-   * @param <K> the type of the keys
-   * @param <V1> the type of the left-hand side values
-   * @param <V2> the type of the right-hand side values
-   */
-  public static class ReadBuilder<K, V1, V2> {
-    private Class<K> keyClass;
-    private BucketedInput<K, V1> lhs;
-    private BucketedInput<K, V2> rhs;
+  public static class CoGbkReadBuilder<K> {
+    private final Class<K> keyClass;
 
-    private ReadBuilder(Class<K> keyClass) {
+    private CoGbkReadBuilder(Class<K> keyClass) {
       this.keyClass = keyClass;
     }
 
-    private ReadBuilder(Class<K> keyClass, BucketedInput<K, V1> lhs) {
-      this(keyClass);
-      this.lhs = lhs;
-    }
-
-    public <V> ReadBuilder<K, V, ?> of(BucketedInput<K, V> lhs) {
-      final ReadBuilder<K, V, ?> builderCopy = new ReadBuilder<>(keyClass);
-
-      builderCopy.lhs = lhs;
-      return builderCopy;
-    }
-
-    public <W> ReadBuilder<K, V1, W> and(BucketedInput<K, W> rhs) {
-      final ReadBuilder<K, V1, W> builderCopy = new ReadBuilder<>(keyClass, lhs);
-
-      builderCopy.rhs = rhs;
-      return builderCopy;
-    }
-
-    public SortedBucketSource<K> build() {
-      return new SortedBucketSource<>(ImmutableList.of(lhs, rhs), keyClass);
+    public CoGbkRead<K> of(Read<?> read) {
+      return new CoGbkRead<>(keyClass, Collections.singletonList(read));
     }
   }
 
-  public static <K, V> SortedBucketSink<K, V> write(
-      BucketMetadata<K, V> metadata,
-      ResourceId outputDirectory,
-      ResourceId tempDirectory,
-      String filenameSuffix,
-      FileOperations<V> fileOperations,
-      int sorterMemoryMb) {
-    return new SortedBucketSink<>(
-        metadata,
-        new SMBFilenamePolicy(outputDirectory, filenameSuffix),
-        fileOperations,
-        tempDirectory,
-        sorterMemoryMb);
+  public static class CoGbkRead<K> extends PTransform<PBegin, PCollection<KV<K, CoGbkResult>>> {
+    private final Class<K> keyClass;
+    private final List<Read<?>> reads;
+
+    private CoGbkRead(Class<K> keyClass, List<Read<?>> reads) {
+      this.keyClass = keyClass;
+      this.reads = reads;
+    }
+
+    public CoGbkRead<K> and(Read<?> read) {
+      ImmutableList<Read<?>> newReads =
+          ImmutableList.<Read<?>>builder().addAll(reads).add(read).build();
+      return new CoGbkRead<>(keyClass, newReads);
+    }
+
+    @Override
+    public PCollection<KV<K, CoGbkResult>> expand(PBegin input) {
+      List<BucketedInput<?, ?>> bucketedInputs =
+          reads.stream().map(Read::toBucketedInput).collect(Collectors.toList());
+      return input.apply(new SortedBucketSource<>(keyClass, bucketedInputs));
+    }
   }
 
-  public abstract static class Read<K, V> {
-    public abstract BucketedInput<K, V> read();
+  public abstract static class Read<V> {
+    protected abstract BucketedInput<?, V> toBucketedInput();
   }
 }

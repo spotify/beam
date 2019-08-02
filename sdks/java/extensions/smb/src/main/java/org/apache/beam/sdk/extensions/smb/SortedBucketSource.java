@@ -93,12 +93,12 @@ public class SortedBucketSource<FinalKeyT>
   private static final Comparator<byte[]> bytesComparator =
       UnsignedBytes.lexicographicalComparator();
 
-  private final transient List<BucketedInput<?, ?>> sources;
   private final Class<FinalKeyT> finalKeyClass;
+  private final transient List<BucketedInput<?, ?>> sources;
 
-  public SortedBucketSource(List<BucketedInput<?, ?>> sources, Class<FinalKeyT> finalKeyClass) {
-    this.sources = sources;
+  public SortedBucketSource(Class<FinalKeyT> finalKeyClass, List<BucketedInput<?, ?>> sources) {
     this.finalKeyClass = finalKeyClass;
+    this.sources = sources;
   }
 
   @Override

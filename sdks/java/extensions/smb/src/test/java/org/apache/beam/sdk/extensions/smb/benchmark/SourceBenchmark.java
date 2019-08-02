@@ -29,8 +29,6 @@ import org.apache.beam.sdk.extensions.smb.SortedBucketSource;
 import org.apache.beam.sdk.extensions.smb.avro.AvroSortedBucketIO;
 import org.apache.beam.sdk.extensions.smb.json.JsonSortedBucketIO;
 import org.apache.beam.sdk.io.AvroGeneratedUser;
-import org.apache.beam.sdk.io.Compression;
-import org.apache.beam.sdk.io.FileSystems;
 import org.apache.beam.sdk.io.gcp.bigquery.TableRowJsonCoder;
 import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.options.PipelineOptionsFactory;
@@ -64,24 +62,15 @@ public class SourceBenchmark {
 
     TupleTag<AvroGeneratedUser> lhsTag = new TupleTag<>();
     TupleTag<TableRow> rhsTag = new TupleTag<>();
-    final SortedBucketSource<String> source =
+    final SortedBucketIO.CoGbkRead<String> read =
         SortedBucketIO.read(String.class)
             .of(
-                AvroSortedBucketIO.source(
-                    lhsTag,
-                    AvroGeneratedUser.class,
-                    FileSystems.matchNewResource(sourceOptions.getAvroSource(), true),
-                    null))
-            .and(
-                JsonSortedBucketIO.source(
-                    rhsTag,
-                    FileSystems.matchNewResource(sourceOptions.getJsonSource(), true),
-                    null,
-                    Compression.UNCOMPRESSED))
-            .build();
+                AvroSortedBucketIO.read(lhsTag, AvroGeneratedUser.class)
+                    .from(sourceOptions.getAvroSource()))
+            .and(JsonSortedBucketIO.read(rhsTag).from(sourceOptions.getJsonSource()));
 
     pipeline
-        .apply(source)
+        .apply(read)
         .apply(
             ParDo.of(
                 new DoFn<KV<String, CoGbkResult>, KV<String, KV<AvroGeneratedUser, TableRow>>>() {

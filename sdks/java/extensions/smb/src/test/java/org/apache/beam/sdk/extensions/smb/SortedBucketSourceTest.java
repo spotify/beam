@@ -183,7 +183,7 @@ public class SortedBucketSourceTest {
             new BucketedInput<>(rhsTag, fromFolder(rhsFolder), ".txt", fileOperations));
 
     PCollection<KV<String, CoGbkResult>> output =
-        pipeline.apply(new SortedBucketSource<>(inputs, String.class));
+        pipeline.apply(new SortedBucketSource<>(String.class, inputs));
 
     // CoGroup by key inputs as expected result
     final Map<String, List<String>> lhs = groupByKey(lhsInput);

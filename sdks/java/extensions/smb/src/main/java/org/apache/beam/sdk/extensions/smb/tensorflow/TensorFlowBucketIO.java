@@ -33,11 +33,20 @@ import org.apache.beam.sdk.io.fs.ResourceId;
 import org.apache.beam.sdk.transforms.PTransform;
 import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.TupleTag;
+import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.base.Preconditions;
 import org.tensorflow.example.Example;
 
 /** Abstracts SMB sources and sinks for TensorFlow Example records. */
 public class TensorFlowBucketIO {
   private static final String DEFAULT_SUFFIX = ".tfrecord";
+
+  public static Read read(TupleTag<Example> tupleTag) {
+    return new AutoValue_TensorFlowBucketIO_Read.Builder()
+        .setTupleTag(tupleTag)
+        .setFilenameSuffix(DEFAULT_SUFFIX)
+        .setCompression(Compression.AUTO)
+        .build();
+  }
 
   public static <K> Write<K> write(Class<K> keyClass, String keyField) {
     return new AutoValue_TensorFlowBucketIO_Write.Builder<K>()
@@ -52,12 +61,54 @@ public class TensorFlowBucketIO {
         .build();
   }
 
-  public static <K> Read<K> read(TupleTag<Example> tupleTag) {
-    return new AutoValue_TensorFlowBucketIO_Read.Builder<K>()
-        .setTupleTag(tupleTag)
-        .setFilenameSuffix(DEFAULT_SUFFIX)
-        .setCompression(Compression.UNCOMPRESSED)
-        .build();
+  ////////////////////////////////////////////////////////////////////////////////
+  // Read
+  ////////////////////////////////////////////////////////////////////////////////
+
+  @AutoValue
+  public abstract static class Read extends SortedBucketIO.Read<Example> {
+    abstract TupleTag<Example> getTupleTag();
+
+    @Nullable
+    abstract ResourceId getFilenamePrefix();
+
+    abstract String getFilenameSuffix();
+
+    abstract Compression getCompression();
+
+    abstract Builder toBuilder();
+
+    @AutoValue.Builder
+    abstract static class Builder {
+      abstract Builder setTupleTag(TupleTag<Example> tupleTag);
+
+      abstract Builder setFilenamePrefix(ResourceId filenamePrefix);
+
+      abstract Builder setFilenameSuffix(String filenameSuffix);
+
+      abstract Builder setCompression(Compression compression);
+
+      abstract Read build();
+    }
+
+    public Read from(String filenamePrefix) {
+      return toBuilder()
+          .setFilenamePrefix(FileSystems.matchNewResource(filenamePrefix, true))
+          .build();
+    }
+
+    public Read withFilenameSuffix(String filenameSuffix) {
+      return toBuilder().setFilenameSuffix(filenameSuffix).build();
+    }
+
+    @Override
+    protected BucketedInput<?, Example> toBucketedInput() {
+      return new BucketedInput<>(
+          getTupleTag(),
+          getFilenamePrefix(),
+          getFilenameSuffix(),
+          TensorFlowFileOperations.of(getCompression()));
+    }
   }
 
   ////////////////////////////////////////////////////////////////////////////////
@@ -164,6 +215,8 @@ public class TensorFlowBucketIO {
 
     @Override
     public WriteResult expand(PCollection<Example> input) {
+      Preconditions.checkNotNull(getOutputDirectory(), "outputDirectory is not set");
+
       BucketMetadata<K, Example> metadata = getMetadata();
       if (metadata == null) {
         try {
@@ -182,62 +235,15 @@ public class TensorFlowBucketIO {
       }
 
       final TensorFlowFileOperations fileOperations = TensorFlowFileOperations.of(getCompression());
-      SortedBucketSink<K, Example> write =
-          SortedBucketIO.write(
+      SortedBucketSink<K, Example> sink =
+          new SortedBucketSink<>(
               metadata,
               outputDirectory,
               tempDirectory,
               getFilenameSuffix(),
               fileOperations,
               getSorterMemoryMb());
-      return input.apply(write);
-    }
-  }
-
-  ////////////////////////////////////////////////////////////////////////////////
-  // Read
-  ////////////////////////////////////////////////////////////////////////////////
-
-  @AutoValue
-  public abstract static class Read<K> extends SortedBucketIO.Read<K, Example> {
-    abstract TupleTag<Example> getTupleTag();
-
-    @Nullable
-    abstract ResourceId getFilenamePrefix();
-
-    abstract String getFilenameSuffix();
-
-    abstract Compression getCompression();
-
-    abstract Builder<K> toBuilder();
-
-    @AutoValue.Builder
-    abstract static class Builder<K> {
-      abstract Builder<K> setTupleTag(TupleTag<Example> tupleTag);
-
-      abstract Builder<K> setFilenamePrefix(ResourceId filenamePrefix);
-
-      abstract Builder<K> setFilenameSuffix(String filenameSuffix);
-
-      abstract Builder<K> setCompression(Compression compression);
-
-      abstract Read<K> build();
-    }
-
-    public Read<K> from(String filenamePrefix) {
-      return toBuilder()
-          .setFilenamePrefix(FileSystems.matchNewResource(filenamePrefix, true))
-          .build();
-    }
-
-    public Read<K> withFilenameSuffix(String filenameSuffix) {
-      return toBuilder().setFilenameSuffix(filenameSuffix).build();
-    }
-
-    @Override
-    public BucketedInput<K, Example> read() {
-      return new BucketedInput<>(getTupleTag(), getFilenamePrefix(),
-          getFilenameSuffix(), TensorFlowFileOperations.of(getCompression()));
+      return input.apply(sink);
     }
   }
 }
