@@ -34,11 +34,11 @@ import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.TupleTag;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.base.Preconditions;
 
-/** API for reading and writing {@link TableRow} JSON sorted-bucket files. */
+/** API for reading and writing BigQuery {@link TableRow} JSON sorted-bucket files. */
 public class JsonSortedBucketIO {
   private static final String DEFAULT_SUFFIX = ".json";
 
-  /** Returns a new {@link Read} for {@link TableRow} JSON records. */
+  /** Returns a new {@link Read} for BigQuery {@link TableRow} JSON records. */
   public static Read read(TupleTag<TableRow> tupleTag) {
     return new AutoValue_JsonSortedBucketIO_Read.Builder()
         .setTupleTag(tupleTag)
@@ -47,7 +47,7 @@ public class JsonSortedBucketIO {
         .build();
   }
 
-  /** Returns a new {@link Write} for {@link TableRow} JSON records. */
+  /** Returns a new {@link Write} for BigQuery {@link TableRow} JSON records. */
   public static <K> Write<K> write(Class<K> keyClass, String keyField) {
     return new AutoValue_JsonSortedBucketIO_Write.Builder<K>()
         .setNumBuckets(SortedBucketIO.DEFAULT_NUM_BUCKETS)
@@ -66,7 +66,7 @@ public class JsonSortedBucketIO {
   ////////////////////////////////////////////////////////////////////////////////
 
   /**
-   * Reads from {@link TableRow} JSON sorted-bucket files, to be used with {@link
+   * Reads from BigQuery {@link TableRow} JSON sorted-bucket files, to be used with {@link
    * SortedBucketIO.CoGbk}.
    */
   @AutoValue
@@ -121,7 +121,9 @@ public class JsonSortedBucketIO {
   // Write
   ////////////////////////////////////////////////////////////////////////////////
 
-  /** Writes to {@link TableRow} JSON sorted-bucket files with {@link SortedBucketSink}. */
+  /**
+   * Writes to BigQuery {@link TableRow} JSON sorted-bucket files using {@link SortedBucketSink}.
+   */
   @AutoValue
   public abstract static class Write<K> extends PTransform<PCollection<TableRow>, WriteResult> {
     // Common

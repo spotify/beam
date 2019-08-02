@@ -33,11 +33,17 @@ import org.apache.beam.sdk.values.TupleTag;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.base.Preconditions;
 import org.tensorflow.example.Example;
 
-/** API for reading and writing TensorFlow {@link Example} sorted-bucket files. */
+/**
+ * API for reading and writing sorted-bucket TensorFlow TFRecord files with TensorFlow {@link
+ * Example} records.
+ */
 public class TensorFlowBucketIO {
   private static final String DEFAULT_SUFFIX = ".tfrecord";
 
-  /** Returns a new {@link Read} for TensorFlow {@link Example} records. */
+  /**
+   * Returns a new {@link Read} for TensorFlow TFRecord files with TensorFlow {@link Example}
+   * records.
+   */
   public static Read read(TupleTag<Example> tupleTag) {
     return new AutoValue_TensorFlowBucketIO_Read.Builder()
         .setTupleTag(tupleTag)
@@ -46,7 +52,10 @@ public class TensorFlowBucketIO {
         .build();
   }
 
-  /** Returns a new {@link Write} for TensorFlow {@link Example} records. */
+  /**
+   * Returns a new {@link Write} for TensorFlow TFRecord files with TensorFlow {@link Example}
+   * records.
+   */
   public static <K> Write<K> write(Class<K> keyClass, String keyField) {
     return new AutoValue_TensorFlowBucketIO_Write.Builder<K>()
         .setNumBuckets(SortedBucketIO.DEFAULT_NUM_BUCKETS)
@@ -65,8 +74,8 @@ public class TensorFlowBucketIO {
   ////////////////////////////////////////////////////////////////////////////////
 
   /**
-   * Reads from TensorFlow {@link Example} sorted-bucket files, to be used with {@link
-   * SortedBucketIO.CoGbk}.
+   * Reads from sorted-bucket TensorFlow TFRecord files with TensorFlow {@link Example} records, to
+   * be used with {@link SortedBucketIO.CoGbk}.
    */
   @AutoValue
   public abstract static class Read extends SortedBucketIO.Read<Example> {
@@ -120,7 +129,10 @@ public class TensorFlowBucketIO {
   // Write
   ////////////////////////////////////////////////////////////////////////////////
 
-  /** Writes to TensorFlow {@link Example} sorted-bucket files with {@link SortedBucketSink}. */
+  /**
+   * Writes to sorted-bucket TensorFlow TFRecord files with TensorFlow {@link Example} records with
+   * {@link SortedBucketSink}.
+   */
   @AutoValue
   public abstract static class Write<K> extends PTransform<PCollection<Example>, WriteResult> {
     // Common
