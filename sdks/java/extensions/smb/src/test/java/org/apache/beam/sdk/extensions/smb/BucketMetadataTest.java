@@ -21,8 +21,6 @@ import com.google.api.services.bigquery.model.TableRow;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.beam.sdk.coders.Coder.NonDeterministicException;
 import org.apache.beam.sdk.extensions.smb.BucketMetadata.HashType;
-import org.apache.beam.sdk.extensions.smb.avro.AvroBucketMetadata;
-import org.apache.beam.sdk.extensions.smb.json.JsonBucketMetadata;
 import org.junit.Assert;
 import org.junit.Test;
 
