@@ -32,7 +32,6 @@ import org.apache.avro.reflect.ReflectDatumReader;
 import org.apache.avro.specific.SpecificRecordBase;
 import org.apache.beam.sdk.coders.AvroCoder;
 import org.apache.beam.sdk.coders.Coder;
-import org.apache.beam.sdk.extensions.smb.FileOperations;
 import org.apache.beam.sdk.io.AvroIO;
 import org.apache.beam.sdk.io.Compression;
 import org.apache.beam.sdk.io.FileIO;
@@ -40,7 +39,7 @@ import org.apache.beam.sdk.io.SerializableAvroCodecFactory;
 import org.apache.beam.sdk.util.MimeTypes;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.base.Supplier;
 
-/** {@link FileOperations} implementation for Avro records. */
+/** {@link org.apache.beam.sdk.extensions.smb.FileOperations} implementation for Avro records. */
 class AvroFileOperations<ValueT> extends FileOperations<ValueT> {
   private static final CodecFactory DEFAULT_CODEC = CodecFactory.snappyCodec();
 

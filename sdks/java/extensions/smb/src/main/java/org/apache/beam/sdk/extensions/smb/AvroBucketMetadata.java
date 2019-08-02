@@ -34,10 +34,11 @@ import org.apache.beam.sdk.coders.CannotProvideCoderException;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.coders.CoderException;
 import org.apache.beam.sdk.coders.StringUtf8Coder;
-import org.apache.beam.sdk.extensions.smb.BucketMetadata;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.collect.ImmutableMap;
 
-/** {@link BucketMetadata} for Avro {@link GenericRecord} records. */
+/**
+ * {@link org.apache.beam.sdk.extensions.smb.BucketMetadata} for Avro {@link GenericRecord} records.
+ */
 class AvroBucketMetadata<K, V extends GenericRecord> extends BucketMetadata<K, V> {
 
   @JsonProperty private final String keyField;

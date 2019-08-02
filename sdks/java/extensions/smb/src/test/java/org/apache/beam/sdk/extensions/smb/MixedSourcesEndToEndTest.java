@@ -149,7 +149,7 @@ public class MixedSourcesEndToEndTest {
     TupleTag<GenericRecord> lhsTag = new TupleTag<>();
     TupleTag<TableRow> rhsTag = new TupleTag<>();
 
-    final SortedBucketIO.CoGbkRead<String> sourceTransform =
+    final SortedBucketIO.CoGbk<String> sourceTransform =
         SortedBucketIO.read(String.class)
             .of(
                 AvroSortedBucketIO.read(lhsTag, GR_USER_SCHEMA)

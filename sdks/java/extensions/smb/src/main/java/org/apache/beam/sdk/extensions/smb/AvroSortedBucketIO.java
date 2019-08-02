@@ -41,6 +41,7 @@ public class AvroSortedBucketIO {
   private static final String DEFAULT_SUFFIX = ".avro";
   private static final CodecFactory DEFAULT_CODEC = CodecFactory.snappyCodec();
 
+  /** Returns a new {@link Read} for Avro generic records. */
   public static Read<GenericRecord> read(TupleTag<GenericRecord> tupleTag, Schema schema) {
     return new AutoValue_AvroSortedBucketIO_Read.Builder<>()
         .setTupleTag(tupleTag)
@@ -50,6 +51,7 @@ public class AvroSortedBucketIO {
         .build();
   }
 
+  /** Returns a new {@link Read} for Avro specific records. */
   public static <T extends SpecificRecordBase> Read<T> read(
       TupleTag<T> tupleTag, Class<T> recordClass) {
     return new AutoValue_AvroSortedBucketIO_Read.Builder<T>()
@@ -60,11 +62,13 @@ public class AvroSortedBucketIO {
         .build();
   }
 
+  /** Returns a new {@link Write} for Avro generic records. */
   public static <K> Write<K, GenericRecord> write(
       Class<K> keyClass, String keyField, Schema schema) {
     return AvroSortedBucketIO.newBuilder(keyClass, keyField).setSchema(schema).build();
   }
 
+  /** Returns a new {@link Write} for Avro specific records. */
   public static <K, T extends SpecificRecordBase> Write<K, T> write(
       Class<K> keyClass, String keyField, Class<T> recordClass) {
     return AvroSortedBucketIO.<K, T>newBuilder(keyClass, keyField)
@@ -89,12 +93,13 @@ public class AvroSortedBucketIO {
   // Read
   ////////////////////////////////////////////////////////////////////////////////
 
+  /** Reads from Avro sorted-bucket files, to be used with {@link SortedBucketIO.CoGbk}. */
   @AutoValue
   public abstract static class Read<T extends GenericRecord> extends SortedBucketIO.Read<T> {
     abstract TupleTag<T> getTupleTag();
 
     @Nullable
-    abstract ResourceId getFilenamePrefix();
+    abstract ResourceId getInputDirectory();
 
     abstract String getFilenameSuffix();
 
@@ -112,7 +117,7 @@ public class AvroSortedBucketIO {
     abstract static class Builder<T extends GenericRecord> {
       abstract Builder<T> setTupleTag(TupleTag<T> tupleTag);
 
-      abstract Builder<T> setFilenamePrefix(ResourceId filenamePrefix);
+      abstract Builder<T> setInputDirectory(ResourceId inputDirectory);
 
       abstract Builder<T> setFilenameSuffix(String filenameSuffix);
 
@@ -125,13 +130,15 @@ public class AvroSortedBucketIO {
       abstract Read<T> build();
     }
 
-    public Read<T> from(String filenamePrefix) {
+    /** Reads from the given input directory. */
+    public Read<T> from(String inputDirectory) {
       return toBuilder()
-          .setFilenamePrefix(FileSystems.matchNewResource(filenamePrefix, true))
+          .setInputDirectory(FileSystems.matchNewResource(inputDirectory, true))
           .build();
     }
 
-    public Read<T> withFilenameSuffix(String filenameSuffix) {
+    /** Reads files with the given suffix. */
+    public Read<T> withSuffix(String filenameSuffix) {
       return toBuilder().setFilenameSuffix(filenameSuffix).build();
     }
 
@@ -144,7 +151,7 @@ public class AvroSortedBucketIO {
               : (AvroFileOperations<T>)
                   AvroFileOperations.of((Class<SpecificRecordBase>) getRecordClass(), getCodec());
       return new BucketedInput<>(
-          getTupleTag(), getFilenamePrefix(), getFilenameSuffix(), fileOperations);
+          getTupleTag(), getInputDirectory(), getFilenameSuffix(), fileOperations);
     }
   }
 
@@ -152,7 +159,7 @@ public class AvroSortedBucketIO {
   // Write
   ////////////////////////////////////////////////////////////////////////////////
 
-  /** Write records to sorted bucket files. */
+  /** Writes to Avro sorted-bucket files with {@link SortedBucketSink}. */
   @AutoValue
   public abstract static class Write<K, T extends GenericRecord>
       extends PTransform<PCollection<T>, WriteResult> {
@@ -225,38 +232,46 @@ public class AvroSortedBucketIO {
       abstract Write<K, T> build();
     }
 
+    /** Writes with the given {@link BucketMetadata}. */
     public Write<K, T> withMetadata(BucketMetadata<K, T> metadata) {
       return toBuilder().setMetadata(metadata).build();
     }
 
+    /** Writes with the given number of buckets. */
     public Write<K, T> withNumBuckets(int numBuckets) {
       return toBuilder().setNumBuckets(numBuckets).build();
     }
 
+    /** Writes with the given number of shards. */
     public Write<K, T> withNumShards(int numShards) {
       return toBuilder().setNumShards(numShards).build();
     }
 
+    /** Writes with the given {@link HashType}. */
     public Write<K, T> withHashType(HashType hashType) {
       return toBuilder().setHashType(hashType).build();
     }
 
+    /** Writes to the given output directory. */
     public Write<K, T> to(String outputDirectory) {
       return toBuilder()
           .setOutputDirectory(FileSystems.matchNewResource(outputDirectory, true))
           .build();
     }
 
+    /** Writes with the given temporary directory. */
     public Write<K, T> withTempDirectory(String tempDirectory) {
       return toBuilder()
           .setTempDirectory(FileSystems.matchNewResource(tempDirectory, true))
           .build();
     }
 
-    public Write<K, T> withFilenameSuffix(String filenameSuffix) {
+    /** Writes with the given filename suffix. */
+    public Write<K, T> withSuffix(String filenameSuffix) {
       return toBuilder().setFilenameSuffix(filenameSuffix).build();
     }
 
+    /** Writes with the given codec. */
     public Write<K, T> withCodec(CodecFactory codec) {
       return toBuilder().setCodec(codec).build();
     }

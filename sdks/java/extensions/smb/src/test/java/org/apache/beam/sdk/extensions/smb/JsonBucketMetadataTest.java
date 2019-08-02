@@ -19,7 +19,6 @@ package org.apache.beam.sdk.extensions.smb;
 
 import com.google.api.services.bigquery.model.TableRow;
 import java.util.Arrays;
-import org.apache.beam.sdk.extensions.smb.BucketMetadata;
 import org.apache.beam.sdk.extensions.smb.BucketMetadata.HashType;
 import org.junit.Assert;
 import org.junit.Test;

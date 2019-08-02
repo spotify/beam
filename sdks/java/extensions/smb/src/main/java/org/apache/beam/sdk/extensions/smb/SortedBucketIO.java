@@ -42,35 +42,45 @@ public class SortedBucketIO {
   static final HashType DEFAULT_HASH_TYPE = HashType.MURMUR3_128;
   static final int DEFAULT_SORTER_MEMORY_MB = 128;
 
-  public static <K> CoGbkReadBuilder<K> read(Class<K> keyClass) {
-    return new CoGbkReadBuilder<>(keyClass);
+  /** Co-groups sorted-bucket sources with the same sort key. */
+  public static <FinalKeyT> CoGbkBuilder<FinalKeyT> read(Class<FinalKeyT> finalKeyClass) {
+    return new CoGbkBuilder<>(finalKeyClass);
   }
 
-  public static class CoGbkReadBuilder<K> {
-    private final Class<K> keyClass;
+  /** Builder for sorted-bucket {@link CoGbk}. */
+  public static class CoGbkBuilder<K> {
+    private final Class<K> finalKeyClass;
 
-    private CoGbkReadBuilder(Class<K> keyClass) {
-      this.keyClass = keyClass;
+    private CoGbkBuilder(Class<K> finalKeyClass) {
+      this.finalKeyClass = finalKeyClass;
     }
 
-    public CoGbkRead<K> of(Read<?> read) {
-      return new CoGbkRead<>(keyClass, Collections.singletonList(read));
+    /** Returns a new {@link CoGbk} with the given first sorted-bucket source in {@link Read}. */
+    public CoGbk<K> of(Read<?> read) {
+      return new CoGbk<>(finalKeyClass, Collections.singletonList(read));
     }
   }
 
-  public static class CoGbkRead<K> extends PTransform<PBegin, PCollection<KV<K, CoGbkResult>>> {
+  /**
+   * A {@link PTransform} for co-grouping sorted-bucket sources using {@link SortedBucketSource}.
+   */
+  public static class CoGbk<K> extends PTransform<PBegin, PCollection<KV<K, CoGbkResult>>> {
     private final Class<K> keyClass;
     private final List<Read<?>> reads;
 
-    private CoGbkRead(Class<K> keyClass, List<Read<?>> reads) {
+    private CoGbk(Class<K> keyClass, List<Read<?>> reads) {
       this.keyClass = keyClass;
       this.reads = reads;
     }
 
-    public CoGbkRead<K> and(Read<?> read) {
+    /**
+     * Returns a new {@link CoGbk} that is the same as this, appended with the given sorted-bucket
+     * source in {@link Read}.
+     */
+    public CoGbk<K> and(Read<?> read) {
       ImmutableList<Read<?>> newReads =
           ImmutableList.<Read<?>>builder().addAll(reads).add(read).build();
-      return new CoGbkRead<>(keyClass, newReads);
+      return new CoGbk<>(keyClass, newReads);
     }
 
     @Override
@@ -81,6 +91,7 @@ public class SortedBucketIO {
     }
   }
 
+  /** Represents a single sorted-bucket source written using {@link SortedBucketSink}. */
   public abstract static class Read<V> {
     protected abstract BucketedInput<?, V> toBucketedInput();
   }
