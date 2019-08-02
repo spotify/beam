@@ -159,7 +159,7 @@ public class AvroSortedBucketIO {
   // Write
   ////////////////////////////////////////////////////////////////////////////////
 
-  /** Writes to Avro sorted-bucket files with {@link SortedBucketSink}. */
+  /** Writes to Avro sorted-bucket files using {@link SortedBucketSink}. */
   @AutoValue
   public abstract static class Write<K, T extends GenericRecord>
       extends PTransform<PCollection<T>, WriteResult> {
