@@ -33,10 +33,11 @@ import org.apache.beam.sdk.values.TupleTag;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.base.Preconditions;
 import org.tensorflow.example.Example;
 
-/** Abstracts SMB sources and sinks for TensorFlow Example records. */
+/** API for reading and writing TensorFlow {@link Example} sorted-bucket files. */
 public class TensorFlowBucketIO {
   private static final String DEFAULT_SUFFIX = ".tfrecord";
 
+  /** Returns a new {@link Read} for TensorFlow {@link Example} records. */
   public static Read read(TupleTag<Example> tupleTag) {
     return new AutoValue_TensorFlowBucketIO_Read.Builder()
         .setTupleTag(tupleTag)
@@ -45,6 +46,7 @@ public class TensorFlowBucketIO {
         .build();
   }
 
+  /** Returns a new {@link Write} for TensorFlow {@link Example} records. */
   public static <K> Write<K> write(Class<K> keyClass, String keyField) {
     return new AutoValue_TensorFlowBucketIO_Write.Builder<K>()
         .setNumBuckets(SortedBucketIO.DEFAULT_NUM_BUCKETS)
@@ -62,12 +64,16 @@ public class TensorFlowBucketIO {
   // Read
   ////////////////////////////////////////////////////////////////////////////////
 
+  /**
+   * Reads from TensorFlow {@link Example} sorted-bucket files, to be used with {@link
+   * SortedBucketIO.CoGbk}.
+   */
   @AutoValue
   public abstract static class Read extends SortedBucketIO.Read<Example> {
     abstract TupleTag<Example> getTupleTag();
 
     @Nullable
-    abstract ResourceId getFilenamePrefix();
+    abstract ResourceId getInputDirectory();
 
     abstract String getFilenameSuffix();
 
@@ -79,7 +85,7 @@ public class TensorFlowBucketIO {
     abstract static class Builder {
       abstract Builder setTupleTag(TupleTag<Example> tupleTag);
 
-      abstract Builder setFilenamePrefix(ResourceId filenamePrefix);
+      abstract Builder setInputDirectory(ResourceId inputDirectory);
 
       abstract Builder setFilenameSuffix(String filenameSuffix);
 
@@ -88,13 +94,15 @@ public class TensorFlowBucketIO {
       abstract Read build();
     }
 
-    public Read from(String filenamePrefix) {
+    /** Reads from the given input directory. */
+    public Read from(String inputDirectory) {
       return toBuilder()
-          .setFilenamePrefix(FileSystems.matchNewResource(filenamePrefix, true))
+          .setInputDirectory(FileSystems.matchNewResource(inputDirectory, true))
           .build();
     }
 
-    public Read withFilenameSuffix(String filenameSuffix) {
+    /** Specifies the input filename suffix. */
+    public Read withSuffix(String filenameSuffix) {
       return toBuilder().setFilenameSuffix(filenameSuffix).build();
     }
 
@@ -102,7 +110,7 @@ public class TensorFlowBucketIO {
     protected BucketedInput<?, Example> toBucketedInput() {
       return new BucketedInput<>(
           getTupleTag(),
-          getFilenamePrefix(),
+          getInputDirectory(),
           getFilenameSuffix(),
           TensorFlowFileOperations.of(getCompression()));
     }
@@ -112,7 +120,7 @@ public class TensorFlowBucketIO {
   // Write
   ////////////////////////////////////////////////////////////////////////////////
 
-  /** Write records to sorted bucket files. */
+  /** Writes to TensorFlow {@link Example} sorted-bucket files with {@link SortedBucketSink}. */
   @AutoValue
   public abstract static class Write<K> extends PTransform<PCollection<Example>, WriteResult> {
     // Common
@@ -174,38 +182,51 @@ public class TensorFlowBucketIO {
       abstract Write<K> build();
     }
 
+    /** Specifies the {@link BucketMetadata} for partitioning. */
     public Write<K> withMetadata(BucketMetadata<K, Example> metadata) {
       return toBuilder().setMetadata(metadata).build();
     }
 
+    /** Specifies the number of buckets for partitioning. */
     public Write<K> withNumBuckets(int numBuckets) {
       return toBuilder().setNumBuckets(numBuckets).build();
     }
 
+    /** Specifies the number of shards for partitioning. */
     public Write<K> withNumShards(int numShards) {
       return toBuilder().setNumShards(numShards).build();
     }
 
+    /** Specifies the {@link HashType} for partitioning. */
     public Write<K> withHashType(HashType hashType) {
       return toBuilder().setHashType(hashType).build();
     }
 
+    /** Writes to the given output directory. */
     public Write<K> to(String outputDirectory) {
       return toBuilder()
           .setOutputDirectory(FileSystems.matchNewResource(outputDirectory, true))
           .build();
     }
 
+    /** Specifies the temporary directory for writing. */
     public Write<K> withTempDirectory(String tempDirectory) {
       return toBuilder()
           .setTempDirectory(FileSystems.matchNewResource(tempDirectory, true))
           .build();
     }
 
-    public Write<K> withFilenameSuffix(String filenameSuffix) {
+    /** Specifies the output filename suffix. */
+    public Write<K> withSuffix(String filenameSuffix) {
       return toBuilder().setFilenameSuffix(filenameSuffix).build();
     }
 
+    /** Specifies the sorter memory in MB. */
+    public Write<K> withSorterMemoryMb(int sorterMemoryMb) {
+      return toBuilder().setSorterMemoryMb(sorterMemoryMb).build();
+    }
+
+    /** Specifies the output file {@link Compression}. */
     public Write<K> withCompression(Compression compression) {
       return toBuilder().setCompression(compression).build();
     }

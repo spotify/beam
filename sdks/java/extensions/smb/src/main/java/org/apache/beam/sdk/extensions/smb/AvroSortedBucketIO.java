@@ -36,7 +36,7 @@ import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.TupleTag;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.base.Preconditions;
 
-/** Abstracts SMB sources and sinks for Avro-typed values. */
+/** API for reading and writing Avro sorted-bucket files. */
 public class AvroSortedBucketIO {
   private static final String DEFAULT_SUFFIX = ".avro";
   private static final CodecFactory DEFAULT_CODEC = CodecFactory.snappyCodec();
@@ -137,7 +137,7 @@ public class AvroSortedBucketIO {
           .build();
     }
 
-    /** Reads files with the given suffix. */
+    /** Specifies the input filename suffix. */
     public Read<T> withSuffix(String filenameSuffix) {
       return toBuilder().setFilenameSuffix(filenameSuffix).build();
     }
@@ -232,22 +232,22 @@ public class AvroSortedBucketIO {
       abstract Write<K, T> build();
     }
 
-    /** Writes with the given {@link BucketMetadata}. */
+    /** Specifies the {@link BucketMetadata} for partitioning. */
     public Write<K, T> withMetadata(BucketMetadata<K, T> metadata) {
       return toBuilder().setMetadata(metadata).build();
     }
 
-    /** Writes with the given number of buckets. */
+    /** Specifies the number of buckets for partitioning. */
     public Write<K, T> withNumBuckets(int numBuckets) {
       return toBuilder().setNumBuckets(numBuckets).build();
     }
 
-    /** Writes with the given number of shards. */
+    /** Specifies the number of shards for partitioning. */
     public Write<K, T> withNumShards(int numShards) {
       return toBuilder().setNumShards(numShards).build();
     }
 
-    /** Writes with the given {@link HashType}. */
+    /** Specifies the {@link HashType} for partitioning. */
     public Write<K, T> withHashType(HashType hashType) {
       return toBuilder().setHashType(hashType).build();
     }
@@ -259,19 +259,24 @@ public class AvroSortedBucketIO {
           .build();
     }
 
-    /** Writes with the given temporary directory. */
+    /** Specifies the temporary directory for writing. */
     public Write<K, T> withTempDirectory(String tempDirectory) {
       return toBuilder()
           .setTempDirectory(FileSystems.matchNewResource(tempDirectory, true))
           .build();
     }
 
-    /** Writes with the given filename suffix. */
+    /** Specifies the output filename suffix. */
     public Write<K, T> withSuffix(String filenameSuffix) {
       return toBuilder().setFilenameSuffix(filenameSuffix).build();
     }
 
-    /** Writes with the given codec. */
+    /** Specifies the sorter memory in MB. */
+    public Write<K, T> withSorterMemoryMb(int sorterMemoryMb) {
+      return toBuilder().setSorterMemoryMb(sorterMemoryMb).build();
+    }
+
+    /** Specifies the output file {@link CodecFactory}. */
     public Write<K, T> withCodec(CodecFactory codec) {
       return toBuilder().setCodec(codec).build();
     }

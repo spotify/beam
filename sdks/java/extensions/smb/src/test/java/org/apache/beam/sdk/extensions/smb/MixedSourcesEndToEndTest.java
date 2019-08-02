@@ -116,7 +116,7 @@ public class MixedSourcesEndToEndTest {
                 .withNumBuckets(8)
                 .withNumShards(4)
                 .withHashType(HashType.MURMUR3_32)
-                .withFilenameSuffix(".avro")
+                .withSuffix(".avro")
                 .withCodec(CodecFactory.snappyCodec()));
 
     pipeline1.run().waitUntilFinish();
@@ -141,7 +141,7 @@ public class MixedSourcesEndToEndTest {
                 .withNumBuckets(8)
                 .withNumShards(4)
                 .withHashType(HashType.MURMUR3_32)
-                .withFilenameSuffix(".json")
+                .withSuffix(".json")
                 .withCompression(Compression.UNCOMPRESSED));
 
     pipeline2.run().waitUntilFinish();
