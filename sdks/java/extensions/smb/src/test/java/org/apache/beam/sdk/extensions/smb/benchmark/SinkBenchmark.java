@@ -149,7 +149,7 @@ public class SinkBenchmark {
             .withNumBuckets(avroNumBuckets)
             .withNumShards(avroNumShards)
             .withHashType(BucketMetadata.HashType.MURMUR3_32)
-            .withFilenameSuffix(".avro")
+            .withSuffix(".avro")
             .withCodec(CodecFactory.snappyCodec());
     avroData.apply(avroWrite);
 
@@ -160,7 +160,7 @@ public class SinkBenchmark {
             .withNumBuckets(jsonNumBuckets)
             .withNumShards(jsonNumShards)
             .withHashType(BucketMetadata.HashType.MURMUR3_32)
-            .withFilenameSuffix(".json")
+            .withSuffix(".json")
             .withCompression(Compression.UNCOMPRESSED);
     jsonData.apply(jsonWrite);
 

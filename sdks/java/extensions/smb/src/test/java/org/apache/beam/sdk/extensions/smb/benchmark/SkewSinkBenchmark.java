@@ -122,7 +122,7 @@ public class SkewSinkBenchmark {
             .withNumBuckets(sinkOptions.getNumBuckets())
             .withNumShards(sinkOptions.getNumShards())
             .withHashType(BucketMetadata.HashType.MURMUR3_32)
-            .withFilenameSuffix(".avro")
+            .withSuffix(".avro")
             .withCodec(CodecFactory.snappyCodec());
     skewData.apply(write);
 

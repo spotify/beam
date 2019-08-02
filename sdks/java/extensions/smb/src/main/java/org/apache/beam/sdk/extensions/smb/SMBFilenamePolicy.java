@@ -32,10 +32,9 @@ import org.joda.time.format.DateTimeFormatter;
  * org.apache.beam.sdk.io.FileBasedSink.FilenamePolicy}.
  *
  * <p>File names are assigned uniquely per {@link BucketShardId}. This class functions differently
- * for the initial write to temp files, and the move of those files to their final destination (see:
- * {@link SortedBucketSink.WriteOperation}). This is because temp writes need to be idempotent in
- * case of bundle failure, and are thus timestamped to ensure an uncorrupted write result when a
- * bundle succeeds.
+ * for the initial write to temp files, and the move of those files to their final destination. This
+ * is because temp writes need to be idempotent in case of bundle failure, and are thus timestamped
+ * to ensure an uncorrupted write result when a bundle succeeds.
  */
 public final class SMBFilenamePolicy implements Serializable {
 
@@ -47,18 +46,17 @@ public final class SMBFilenamePolicy implements Serializable {
   private final String timestamp = Instant.now().toString(TEMPDIR_TIMESTAMP);
   private final Long tempId = TEMP_COUNT.getAndIncrement();
 
-  private final ResourceId filenamePrefix;
+  private final ResourceId directory;
   private final String filenameSuffix;
 
-  public SMBFilenamePolicy(ResourceId filenamePrefix, String filenameSuffix) {
-    Preconditions.checkArgument(
-        filenamePrefix.isDirectory(), "The ResourceId for filenamePrefix must be a directory");
-    this.filenamePrefix = filenamePrefix;
+  public SMBFilenamePolicy(ResourceId directory, String filenameSuffix) {
+    Preconditions.checkArgument(directory.isDirectory(), "ResourceId must be a directory");
+    this.directory = directory;
     this.filenameSuffix = filenameSuffix;
   }
 
   FileAssignment forDestination() {
-    return new FileAssignment(filenamePrefix, filenameSuffix, false);
+    return new FileAssignment(directory, filenameSuffix, false);
   }
 
   FileAssignment forTempFiles(ResourceId tempDirectory) {

@@ -314,7 +314,7 @@ public class SortedBucketSource<FinalKeyT>
    */
   public static class BucketedInput<K, V> {
     private final TupleTag<V> tupleTag;
-    private final ResourceId filenamePrefix;
+    private final ResourceId inputDirectory;
     private final String filenameSuffix;
     private final FileOperations<V> fileOperations;
 
@@ -323,24 +323,24 @@ public class SortedBucketSource<FinalKeyT>
 
     public BucketedInput(
         TupleTag<V> tupleTag,
-        ResourceId filenamePrefix,
+        ResourceId inputDirectory,
         String filenameSuffix,
         FileOperations<V> fileOperations) {
       this.tupleTag = tupleTag;
-      this.filenamePrefix = filenamePrefix;
+      this.inputDirectory = inputDirectory;
       this.filenameSuffix = filenameSuffix;
       this.fileOperations = fileOperations;
 
-      this.fileAssignment = new SMBFilenamePolicy(filenamePrefix, filenameSuffix).forDestination();
+      this.fileAssignment = new SMBFilenamePolicy(inputDirectory, filenameSuffix).forDestination();
     }
 
     private BucketedInput(
         TupleTag<V> tupleTag,
-        ResourceId filenamePrefix,
+        ResourceId inputDirectory,
         String filenameSuffix,
         FileOperations<V> fileOperations,
         BucketMetadata<K, V> metadata) {
-      this(tupleTag, filenamePrefix, filenameSuffix, fileOperations);
+      this(tupleTag, inputDirectory, filenameSuffix, fileOperations);
       this.metadata = metadata;
     }
 
@@ -402,8 +402,8 @@ public class SortedBucketSource<FinalKeyT>
     @Override
     public String toString() {
       return String.format(
-          "BucketedInput[tupleTag=%s, filenamePrefix=%s, metadata=%s]",
-          tupleTag.getId(), filenamePrefix, getMetadata());
+          "BucketedInput[tupleTag=%s, inputDirectory=%s, metadata=%s]",
+          tupleTag.getId(), inputDirectory, getMetadata());
     }
 
     private static class BucketedInputCoder<K, V> extends AtomicCoder<BucketedInput<K, V>> {
@@ -418,7 +418,7 @@ public class SortedBucketSource<FinalKeyT>
       @Override
       public void encode(BucketedInput<K, V> value, OutputStream outStream) throws IOException {
         tupleTagCoder.encode(value.tupleTag, outStream);
-        resourceIdCoder.encode(value.filenamePrefix, outStream);
+        resourceIdCoder.encode(value.inputDirectory, outStream);
         stringCoder.encode(value.filenameSuffix, outStream);
         fileOpCoder.encode(value.fileOperations, outStream);
         metadataCoder.encode(value.getMetadata(), outStream);
@@ -428,13 +428,13 @@ public class SortedBucketSource<FinalKeyT>
       public BucketedInput<K, V> decode(InputStream inStream) throws IOException {
         @SuppressWarnings("unchecked")
         TupleTag<V> tupleTag = (TupleTag<V>) tupleTagCoder.decode(inStream);
-        ResourceId filenamePrefix = resourceIdCoder.decode(inStream);
+        ResourceId inputDirectory = resourceIdCoder.decode(inStream);
         String filenameSuffix = stringCoder.decode(inStream);
         @SuppressWarnings("unchecked")
         FileOperations<V> fileOperations = fileOpCoder.decode(inStream);
         BucketMetadata<K, V> metadata = metadataCoder.decode(inStream);
         return new BucketedInput<>(
-            tupleTag, filenamePrefix, filenameSuffix, fileOperations, metadata);
+            tupleTag, inputDirectory, filenameSuffix, fileOperations, metadata);
       }
     }
   }
