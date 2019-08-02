@@ -142,7 +142,7 @@ public class SortedBucketSink<K, V> extends PTransform<PCollection<V>, WriteResu
   }
 
   /** Extract bucket and shard id for grouping, and key bytes for sorting. */
-  static class ExtractKeys<K, V> extends DoFn<V, KV<BucketShardId, KV<byte[], V>>> {
+  private static class ExtractKeys<K, V> extends DoFn<V, KV<BucketShardId, KV<byte[], V>>> {
     // Substitute null keys in the output KV<byte[], V> so that they survive serialization
     private static final byte[] NULL_SORT_KEY = new byte[0];
 
@@ -221,7 +221,7 @@ public class SortedBucketSink<K, V> extends PTransform<PCollection<V>, WriteResu
    * operation that manages the process of writing to {@link SortedBucketSink}.
    */
   // TODO: Retry policy, etc...
-  static class WriteOperation<V>
+  private static class WriteOperation<V>
       extends PTransform<PCollection<KV<BucketShardId, Iterable<KV<byte[], V>>>>, WriteResult> {
     private final SMBFilenamePolicy filenamePolicy;
     private final BucketMetadata<?, V> bucketMetadata;
@@ -254,7 +254,7 @@ public class SortedBucketSink<K, V> extends PTransform<PCollection<V>, WriteResu
   }
 
   /** Writes metadata and bucket files to temporary location. */
-  static class WriteTempFiles<V>
+  private static class WriteTempFiles<V>
       extends PTransform<
           PCollection<KV<BucketShardId, Iterable<KV<byte[], V>>>>, PCollectionTuple> {
 
@@ -325,7 +325,7 @@ public class SortedBucketSink<K, V> extends PTransform<PCollection<V>, WriteResu
   }
 
   /** Moves temporary files to final destinations. */
-  static class FinalizeTempFiles<V> extends PTransform<PCollectionTuple, WriteResult> {
+  private static class FinalizeTempFiles<V> extends PTransform<PCollectionTuple, WriteResult> {
     private final FileAssignment fileAssignment;
     private final BucketMetadata bucketMetadata;
     private final FileOperations<V> fileOperations;
@@ -378,7 +378,7 @@ public class SortedBucketSink<K, V> extends PTransform<PCollection<V>, WriteResu
     }
 
     /** Renames temp bucket files to final destinations. */
-    static class RenameBuckets<V>
+    private static class RenameBuckets<V>
         extends DoFn<Iterable<KV<BucketShardId, ResourceId>>, KV<BucketShardId, ResourceId>> {
 
       private final FileAssignment fileAssignment;
