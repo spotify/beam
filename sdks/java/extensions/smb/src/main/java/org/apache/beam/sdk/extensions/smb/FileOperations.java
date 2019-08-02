@@ -30,6 +30,9 @@ import org.apache.beam.sdk.io.FileIO.ReadableFile;
 import org.apache.beam.sdk.io.FileSystems;
 import org.apache.beam.sdk.io.fs.MatchResult.Metadata;
 import org.apache.beam.sdk.io.fs.ResourceId;
+import org.apache.beam.sdk.transforms.display.DisplayData;
+import org.apache.beam.sdk.transforms.display.DisplayData.Builder;
+import org.apache.beam.sdk.transforms.display.HasDisplayData;
 
 /**
  * Abstracts IO operations for file-based formats.
@@ -39,7 +42,7 @@ import org.apache.beam.sdk.io.fs.ResourceId;
  * be {@link Serializable} to be used in {@link SortedBucketSource} and {@link SortedBucketSink}
  * transforms.
  */
-public abstract class FileOperations<V> implements Serializable {
+public abstract class FileOperations<V> implements Serializable, HasDisplayData {
 
   private final Compression compression;
   private final String mimeType;
@@ -68,6 +71,13 @@ public abstract class FileOperations<V> implements Serializable {
     final Writer<V> writer = new Writer<>(createSink(), compression);
     writer.prepareWrite(FileSystems.create(resourceId, mimeType));
     return writer;
+  }
+
+  @Override
+  public void populateDisplayData(Builder builder) {
+    builder.add(DisplayData.item("FileOperations", getClass()));
+    builder.add(DisplayData.item("compression", compression.toString()));
+    builder.add(DisplayData.item("mimeType", mimeType));
   }
 
   /** Per-element file reader. */

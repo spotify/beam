@@ -44,6 +44,8 @@ import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.transforms.GroupByKey;
 import org.apache.beam.sdk.transforms.PTransform;
 import org.apache.beam.sdk.transforms.ParDo;
+import org.apache.beam.sdk.transforms.display.DisplayData;
+import org.apache.beam.sdk.transforms.display.DisplayData.Builder;
 import org.apache.beam.sdk.values.KV;
 import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.PCollection.IsBounded;
@@ -178,6 +180,12 @@ public class SortedBucketSink<K, V> extends PTransform<PCollection<V>, WriteResu
       final byte[] sortKey = keyBytes != null ? keyBytes : NULL_SORT_KEY;
       c.output(KV.of(bucketShardId, KV.of(sortKey, record)));
     }
+
+    @Override
+    public void populateDisplayData(Builder builder) {
+      super.populateDisplayData(builder);
+      builder.delegate(bucketMetadata);
+    }
   }
 
   /**
@@ -276,10 +284,15 @@ public class SortedBucketSink<K, V> extends PTransform<PCollection<V>, WriteResu
 
       return PCollectionTuple.of(
               new TupleTag<>("TempMetadata"),
-              input.getPipeline().apply(Create.of(Collections.singletonList(writeMetadataFile()))))
+              input
+                  .getPipeline()
+                  .apply(
+                      "WriteTempMetadata",
+                      Create.of(Collections.singletonList(writeMetadataFile()))))
           .and(
               new TupleTag<>("TempBuckets"),
               input.apply(
+                  "WriteTempBuckets",
                   ParDo.of(
                       new DoFn<
                           KV<BucketShardId, Iterable<KV<byte[], V>>>,
@@ -306,6 +319,13 @@ public class SortedBucketSink<K, V> extends PTransform<PCollection<V>, WriteResu
                           }
 
                           c.output(KV.of(bucketShardId, tmpFile));
+                        }
+
+                        @Override
+                        public void populateDisplayData(Builder builder) {
+                          super.populateDisplayData(builder);
+                          builder.delegate(fileAssignment);
+                          builder.delegate(fileOperations);
                         }
                       })));
     }
@@ -358,6 +378,15 @@ public class SortedBucketSink<K, V> extends PTransform<PCollection<V>, WriteResu
                                     FileSystems.rename(
                                         ImmutableList.of(c.element()), ImmutableList.of(dstFile));
                                     c.output(dstFile);
+                                  }
+
+                                  @Override
+                                  public void populateDisplayData(Builder builder) {
+                                    super.populateDisplayData(builder);
+                                    builder.add(
+                                        DisplayData.item(
+                                            "Metadata Location",
+                                            fileAssignment.forMetadata().toString()));
                                   }
                                 }));
 
@@ -431,6 +460,12 @@ public class SortedBucketSink<K, V> extends PTransform<PCollection<V>, WriteResu
 
         FileSystems.rename(srcFiles, dstFiles);
         finalBucketLocations.forEach(c::output);
+      }
+
+      @Override
+      public void populateDisplayData(Builder builder) {
+        super.populateDisplayData(builder);
+        builder.delegate(fileAssignment);
       }
     }
   }

@@ -24,6 +24,8 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.api.services.bigquery.model.TableRow;
 import org.apache.beam.sdk.coders.CannotProvideCoderException;
+import org.apache.beam.sdk.transforms.display.DisplayData;
+import org.apache.beam.sdk.transforms.display.DisplayData.Builder;
 
 /**
  * {@link org.apache.beam.sdk.extensions.smb.BucketMetadata} for BigQuery {@link TableRow} JSON
@@ -68,5 +70,11 @@ class JsonBucketMetadata<K> extends BucketMetadata<K, TableRow> {
     @SuppressWarnings("unchecked")
     K key = (K) node.get(keyPath[keyPath.length - 1]);
     return key;
+  }
+
+  @Override
+  public void populateDisplayData(Builder builder) {
+    super.populateDisplayData(builder);
+    builder.add(DisplayData.item("keyField", keyField));
   }
 }

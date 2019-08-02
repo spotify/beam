@@ -21,6 +21,9 @@ import java.io.Serializable;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.beam.sdk.io.fs.ResolveOptions.StandardResolveOptions;
 import org.apache.beam.sdk.io.fs.ResourceId;
+import org.apache.beam.sdk.transforms.display.DisplayData;
+import org.apache.beam.sdk.transforms.display.DisplayData.Builder;
+import org.apache.beam.sdk.transforms.display.HasDisplayData;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.annotations.VisibleForTesting;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.base.Preconditions;
 import org.joda.time.Instant;
@@ -79,7 +82,7 @@ public final class SMBFilenamePolicy implements Serializable {
    * A file name assigner based on a specific output directory and file suffix. Optionally prepends
    * a timestamp to file names to ensure idempotence.
    */
-  public static class FileAssignment implements Serializable {
+  public static class FileAssignment implements Serializable, HasDisplayData {
 
     private static final String NULL_KEYS_BUCKET_TEMPLATE = "null-keys";
     private static final String NUMERIC_BUCKET_TEMPLATE = "%05d-of-%05d";
@@ -131,6 +134,12 @@ public final class SMBFilenamePolicy implements Serializable {
       String timestamp = doTimestampFiles ? Instant.now().toString(TEMPFILE_TIMESTAMP) : "";
       return filenamePrefix.resolve(
           timestamp + METADATA_FILENAME, StandardResolveOptions.RESOLVE_FILE);
+    }
+
+    @Override
+    public void populateDisplayData(Builder builder) {
+      builder.add(DisplayData.item("directory", filenamePrefix.toString()));
+      builder.add(DisplayData.item("filenameSuffix", filenameSuffix));
     }
   }
 }
