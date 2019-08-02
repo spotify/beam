@@ -164,9 +164,6 @@ public class AvroSortedBucketIO {
   public abstract static class Write<K, T extends GenericRecord>
       extends PTransform<PCollection<T>, WriteResult> {
     // Common
-    @Nullable
-    abstract BucketMetadata<K, T> getMetadata();
-
     abstract int getNumBuckets();
 
     abstract int getNumShards();
@@ -202,8 +199,6 @@ public class AvroSortedBucketIO {
     @AutoValue.Builder
     abstract static class Builder<K, T extends GenericRecord> {
       // Common
-      abstract Builder<K, T> setMetadata(BucketMetadata<K, T> metadata);
-
       abstract Builder<K, T> setNumBuckets(int numBuckets);
 
       abstract Builder<K, T> setNumShards(int numShards);
@@ -230,11 +225,6 @@ public class AvroSortedBucketIO {
       abstract Builder<K, T> setCodec(CodecFactory codec);
 
       abstract Write<K, T> build();
-    }
-
-    /** Specifies the {@link BucketMetadata} for partitioning. */
-    public Write<K, T> withMetadata(BucketMetadata<K, T> metadata) {
-      return toBuilder().setMetadata(metadata).build();
     }
 
     /** Specifies the number of buckets for partitioning. */
@@ -285,15 +275,13 @@ public class AvroSortedBucketIO {
     public WriteResult expand(PCollection<T> input) {
       Preconditions.checkNotNull(getOutputDirectory(), "outputDirectory is not set");
 
-      BucketMetadata<K, T> metadata = getMetadata();
-      if (metadata == null) {
-        try {
-          metadata =
-              new AvroBucketMetadata<>(
-                  getNumBuckets(), getNumShards(), getKeyClass(), getHashType(), getKeyField());
-        } catch (CannotProvideCoderException | Coder.NonDeterministicException e) {
-          throw new IllegalStateException(e);
-        }
+      BucketMetadata<K, T> metadata;
+      try {
+        metadata =
+            new AvroBucketMetadata<>(
+                getNumBuckets(), getNumShards(), getKeyClass(), getHashType(), getKeyField());
+      } catch (CannotProvideCoderException | Coder.NonDeterministicException e) {
+        throw new IllegalStateException(e);
       }
 
       final ResourceId outputDirectory = getOutputDirectory();
