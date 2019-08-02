@@ -136,9 +136,6 @@ public class TensorFlowBucketIO {
   @AutoValue
   public abstract static class Write<K> extends PTransform<PCollection<Example>, WriteResult> {
     // Common
-    @Nullable
-    abstract BucketMetadata<K, Example> getMetadata();
-
     abstract int getNumBuckets();
 
     abstract int getNumShards();
@@ -168,7 +165,6 @@ public class TensorFlowBucketIO {
     @AutoValue.Builder
     abstract static class Builder<K> {
       // Common
-      abstract Builder<K> setMetadata(BucketMetadata<K, Example> metadata);
 
       abstract Builder<K> setNumBuckets(int numBuckets);
 
@@ -192,11 +188,6 @@ public class TensorFlowBucketIO {
       abstract Builder<K> setCompression(Compression compression);
 
       abstract Write<K> build();
-    }
-
-    /** Specifies the {@link BucketMetadata} for partitioning. */
-    public Write<K> withMetadata(BucketMetadata<K, Example> metadata) {
-      return toBuilder().setMetadata(metadata).build();
     }
 
     /** Specifies the number of buckets for partitioning. */
@@ -247,15 +238,13 @@ public class TensorFlowBucketIO {
     public WriteResult expand(PCollection<Example> input) {
       Preconditions.checkNotNull(getOutputDirectory(), "outputDirectory is not set");
 
-      BucketMetadata<K, Example> metadata = getMetadata();
-      if (metadata == null) {
-        try {
-          metadata =
-              new TensorFlowMetadata<>(
-                  getNumBuckets(), getNumShards(), getKeyClass(), getHashType(), getKeyField());
-        } catch (CannotProvideCoderException | Coder.NonDeterministicException e) {
-          throw new IllegalStateException(e);
-        }
+      BucketMetadata<K, Example> metadata;
+      try {
+        metadata =
+            new TensorFlowMetadata<>(
+                getNumBuckets(), getNumShards(), getKeyClass(), getHashType(), getKeyField());
+      } catch (CannotProvideCoderException | Coder.NonDeterministicException e) {
+        throw new IllegalStateException(e);
       }
 
       final ResourceId outputDirectory = getOutputDirectory();
