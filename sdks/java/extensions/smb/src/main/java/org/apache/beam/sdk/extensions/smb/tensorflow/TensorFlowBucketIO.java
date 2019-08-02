@@ -39,11 +39,7 @@ import org.tensorflow.example.Example;
 public class TensorFlowBucketIO {
   private static final String DEFAULT_SUFFIX = ".tfrecord";
 
-  ////////////////////////////////////////////////////////////////////////////////
-  // Write
-  ////////////////////////////////////////////////////////////////////////////////
-
-  public static <K> TensorFlowBucketIO.Write<K> write(Class<K> keyClass, String keyField) {
+  public static <K> Write<K> write(Class<K> keyClass, String keyField) {
     return new AutoValue_TensorFlowBucketIO_Write.Builder<K>()
         .setNumBuckets(SortedBucketIO.DEFAULT_NUM_BUCKETS)
         .setNumShards(SortedBucketIO.DEFAULT_NUM_SHARDS)
@@ -55,6 +51,18 @@ public class TensorFlowBucketIO {
         .setCompression(Compression.UNCOMPRESSED)
         .build();
   }
+
+  public static <K> Read<K> read(TupleTag<Example> tupleTag) {
+    return new AutoValue_TensorFlowBucketIO_Read.Builder<K>()
+        .setTupleTag(tupleTag)
+        .setFilenameSuffix(DEFAULT_SUFFIX)
+        .setCompression(Compression.UNCOMPRESSED)
+        .build();
+  }
+
+  ////////////////////////////////////////////////////////////////////////////////
+  // Write
+  ////////////////////////////////////////////////////////////////////////////////
 
   /** Write records to sorted bucket files. */
   @AutoValue
@@ -187,16 +195,49 @@ public class TensorFlowBucketIO {
   }
 
   ////////////////////////////////////////////////////////////////////////////////
+  // Read
+  ////////////////////////////////////////////////////////////////////////////////
 
-  public static <KeyT> BucketedInput<KeyT, Example> source(
-      TupleTag<Example> tupleTag,
-      ResourceId filenamePrefix,
-      String filenameSuffix,
-      Compression compression) {
-    return new BucketedInput<>(
-        tupleTag,
-        filenamePrefix,
-        filenameSuffix != null ? filenameSuffix : DEFAULT_SUFFIX + compression.getSuggestedSuffix(),
-        TensorFlowFileOperations.of(compression));
+  @AutoValue
+  public abstract static class Read<K> extends SortedBucketIO.Read<K, Example> {
+    abstract TupleTag<Example> getTupleTag();
+
+    @Nullable
+    abstract ResourceId getFilenamePrefix();
+
+    abstract String getFilenameSuffix();
+
+    abstract Compression getCompression();
+
+    abstract Builder<K> toBuilder();
+
+    @AutoValue.Builder
+    abstract static class Builder<K> {
+      abstract Builder<K> setTupleTag(TupleTag<Example> tupleTag);
+
+      abstract Builder<K> setFilenamePrefix(ResourceId filenamePrefix);
+
+      abstract Builder<K> setFilenameSuffix(String filenameSuffix);
+
+      abstract Builder<K> setCompression(Compression compression);
+
+      abstract Read<K> build();
+    }
+
+    public Read<K> from(String filenamePrefix) {
+      return toBuilder()
+          .setFilenamePrefix(FileSystems.matchNewResource(filenamePrefix, true))
+          .build();
+    }
+
+    public Read<K> withFilenameSuffix(String filenameSuffix) {
+      return toBuilder().setFilenameSuffix(filenameSuffix).build();
+    }
+
+    @Override
+    public BucketedInput<K, Example> read() {
+      return new BucketedInput<>(getTupleTag(), getFilenamePrefix(),
+          getFilenameSuffix(), TensorFlowFileOperations.of(getCompression()));
+    }
   }
 }
