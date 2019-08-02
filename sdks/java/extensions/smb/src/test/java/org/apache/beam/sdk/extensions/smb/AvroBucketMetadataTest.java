@@ -22,7 +22,6 @@ import java.util.Collections;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.generic.GenericRecordBuilder;
-import org.apache.beam.sdk.extensions.smb.BucketMetadata;
 import org.apache.beam.sdk.extensions.smb.BucketMetadata.HashType;
 import org.apache.beam.sdk.io.AvroGeneratedUser;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.collect.Lists;

@@ -62,7 +62,7 @@ public class SourceBenchmark {
 
     TupleTag<AvroGeneratedUser> lhsTag = new TupleTag<>();
     TupleTag<TableRow> rhsTag = new TupleTag<>();
-    final SortedBucketIO.CoGbkRead<String> read =
+    final SortedBucketIO.CoGbk<String> read =
         SortedBucketIO.read(String.class)
             .of(
                 AvroSortedBucketIO.read(lhsTag, AvroGeneratedUser.class)

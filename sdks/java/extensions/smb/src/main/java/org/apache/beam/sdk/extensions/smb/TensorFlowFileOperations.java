@@ -22,7 +22,6 @@ import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.extensions.protobuf.ProtoCoder;
-import org.apache.beam.sdk.extensions.smb.FileOperations;
 import org.apache.beam.sdk.io.Compression;
 import org.apache.beam.sdk.io.FileIO;
 import org.apache.beam.sdk.io.TFRecordIO;
@@ -30,8 +29,8 @@ import org.apache.beam.sdk.util.MimeTypes;
 import org.tensorflow.example.Example;
 
 /**
- * {@link FileOperations} implementation for TensorFlow TFRecord files with TensorFlow {@link
- * Example} records.
+ * {@link org.apache.beam.sdk.extensions.smb.FileOperations} implementation for TensorFlow TFRecord
+ * files with TensorFlow {@link Example} records.
  */
 class TensorFlowFileOperations extends FileOperations<Example> {
 
