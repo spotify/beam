@@ -15,26 +15,25 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.beam.sdk.extensions.smb.tensorflow;
+package org.apache.beam.sdk.extensions.smb;
+
+import static org.apache.beam.sdk.coders.Coder.NonDeterministicException;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.google.api.services.bigquery.model.TableRow;
 import org.apache.beam.sdk.coders.CannotProvideCoderException;
-import org.apache.beam.sdk.coders.Coder.NonDeterministicException;
 import org.apache.beam.sdk.extensions.smb.BucketMetadata;
-import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.base.Preconditions;
-import org.tensorflow.example.BytesList;
-import org.tensorflow.example.Example;
-import org.tensorflow.example.Feature;
-import org.tensorflow.example.FloatList;
-import org.tensorflow.example.Int64List;
 
-/** {@link BucketMetadata} for TensorFlow {@link Example} records. */
-public class TensorFlowMetadata<K> extends BucketMetadata<K, Example> {
+/** {@link BucketMetadata} for BigQuery {@link TableRow} JSON records. */
+public class JsonBucketMetadata<K> extends BucketMetadata<K, TableRow> {
 
   @JsonProperty private final String keyField;
 
-  public TensorFlowMetadata(
+  @JsonIgnore private String[] keyPath;
+
+  public JsonBucketMetadata(
       int numBuckets,
       int numShards,
       Class<K> keyClass,
@@ -45,7 +44,7 @@ public class TensorFlowMetadata<K> extends BucketMetadata<K, Example> {
   }
 
   @JsonCreator
-  TensorFlowMetadata(
+  JsonBucketMetadata(
       @JsonProperty("version") int version,
       @JsonProperty("numBuckets") int numBuckets,
       @JsonProperty("numShards") int numShards,
@@ -55,25 +54,17 @@ public class TensorFlowMetadata<K> extends BucketMetadata<K, Example> {
       throws CannotProvideCoderException, NonDeterministicException {
     super(version, numBuckets, numShards, keyClass, hashType);
     this.keyField = keyField;
+    this.keyPath = keyField.split("\\.");
   }
 
-  @SuppressWarnings("unchecked")
   @Override
-  public K extractKey(Example value) {
-    Feature feature = value.getFeatures().getFeatureMap().get(keyField);
-    if (getKeyClass() == byte[].class) {
-      BytesList values = feature.getBytesList();
-      Preconditions.checkState(values.getValueCount() == 1, "Number of feature in keyField != 1");
-      return (K) values.getValue(0).toByteArray();
-    } else if (getKeyClass() == Long.class) {
-      Int64List values = feature.getInt64List();
-      Preconditions.checkState(values.getValueCount() == 1, "Number of feature in keyField != 1");
-      return (K) Long.valueOf(values.getValue(0));
-    } else if (getKeyClass() == Float.class) {
-      FloatList values = feature.getFloatList();
-      Preconditions.checkState(values.getValueCount() == 1, "Number of feature in keyField != 1");
-      return (K) Float.valueOf(values.getValue(0));
+  public K extractKey(TableRow value) {
+    TableRow node = value;
+    for (int i = 0; i < keyPath.length - 1; i++) {
+      node = (TableRow) node.get(keyPath[i]);
     }
-    throw new IllegalStateException("Unsupported key class " + getKeyClass());
+    @SuppressWarnings("unchecked")
+    K key = (K) node.get(keyPath[keyPath.length - 1]);
+    return key;
   }
 }

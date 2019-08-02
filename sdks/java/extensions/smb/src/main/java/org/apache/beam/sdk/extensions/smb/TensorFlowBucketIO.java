@@ -15,16 +15,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.beam.sdk.extensions.smb.json;
+package org.apache.beam.sdk.extensions.smb;
 
-import static org.apache.beam.sdk.extensions.smb.BucketMetadata.HashType;
-
-import com.google.api.services.bigquery.model.TableRow;
 import com.google.auto.value.AutoValue;
 import javax.annotation.Nullable;
 import org.apache.beam.sdk.coders.CannotProvideCoderException;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.extensions.smb.BucketMetadata;
+import org.apache.beam.sdk.extensions.smb.BucketMetadata.HashType;
 import org.apache.beam.sdk.extensions.smb.SortedBucketIO;
 import org.apache.beam.sdk.extensions.smb.SortedBucketSink;
 import org.apache.beam.sdk.extensions.smb.SortedBucketSink.WriteResult;
@@ -36,13 +34,14 @@ import org.apache.beam.sdk.transforms.PTransform;
 import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.TupleTag;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.base.Preconditions;
+import org.tensorflow.example.Example;
 
-/** Abstracts SMB sources and sinks for JSON records. */
-public class JsonSortedBucketIO {
-  private static final String DEFAULT_SUFFIX = ".json";
+/** Abstracts SMB sources and sinks for TensorFlow Example records. */
+public class TensorFlowBucketIO {
+  private static final String DEFAULT_SUFFIX = ".tfrecord";
 
-  public static Read read(TupleTag<TableRow> tupleTag) {
-    return new AutoValue_JsonSortedBucketIO_Read.Builder()
+  public static Read read(TupleTag<Example> tupleTag) {
+    return new AutoValue_TensorFlowBucketIO_Read.Builder()
         .setTupleTag(tupleTag)
         .setFilenameSuffix(DEFAULT_SUFFIX)
         .setCompression(Compression.AUTO)
@@ -50,7 +49,7 @@ public class JsonSortedBucketIO {
   }
 
   public static <K> Write<K> write(Class<K> keyClass, String keyField) {
-    return new AutoValue_JsonSortedBucketIO_Write.Builder<K>()
+    return new AutoValue_TensorFlowBucketIO_Write.Builder<K>()
         .setNumBuckets(SortedBucketIO.DEFAULT_NUM_BUCKETS)
         .setNumShards(SortedBucketIO.DEFAULT_NUM_SHARDS)
         .setHashType(SortedBucketIO.DEFAULT_HASH_TYPE)
@@ -67,8 +66,8 @@ public class JsonSortedBucketIO {
   ////////////////////////////////////////////////////////////////////////////////
 
   @AutoValue
-  public abstract static class Read extends SortedBucketIO.Read<TableRow> {
-    abstract TupleTag<TableRow> getTupleTag();
+  public abstract static class Read extends SortedBucketIO.Read<Example> {
+    abstract TupleTag<Example> getTupleTag();
 
     @Nullable
     abstract ResourceId getFilenamePrefix();
@@ -81,7 +80,7 @@ public class JsonSortedBucketIO {
 
     @AutoValue.Builder
     abstract static class Builder {
-      abstract Builder setTupleTag(TupleTag<TableRow> tupleTag);
+      abstract Builder setTupleTag(TupleTag<Example> tupleTag);
 
       abstract Builder setFilenamePrefix(ResourceId filenamePrefix);
 
@@ -103,12 +102,12 @@ public class JsonSortedBucketIO {
     }
 
     @Override
-    protected BucketedInput<?, TableRow> toBucketedInput() {
+    protected BucketedInput<?, Example> toBucketedInput() {
       return new BucketedInput<>(
           getTupleTag(),
           getFilenamePrefix(),
           getFilenameSuffix(),
-          JsonFileOperations.of(getCompression()));
+          TensorFlowFileOperations.of(getCompression()));
     }
   }
 
@@ -118,10 +117,10 @@ public class JsonSortedBucketIO {
 
   /** Write records to sorted bucket files. */
   @AutoValue
-  public abstract static class Write<K> extends PTransform<PCollection<TableRow>, WriteResult> {
+  public abstract static class Write<K> extends PTransform<PCollection<Example>, WriteResult> {
     // Common
     @Nullable
-    abstract BucketMetadata<K, TableRow> getMetadata();
+    abstract BucketMetadata<K, Example> getMetadata();
 
     abstract int getNumBuckets();
 
@@ -141,7 +140,7 @@ public class JsonSortedBucketIO {
 
     abstract int getSorterMemoryMb();
 
-    // JSON specific
+    // TFRecord specific
     @Nullable
     abstract String getKeyField();
 
@@ -152,7 +151,7 @@ public class JsonSortedBucketIO {
     @AutoValue.Builder
     abstract static class Builder<K> {
       // Common
-      abstract Builder<K> setMetadata(BucketMetadata<K, TableRow> metadata);
+      abstract Builder<K> setMetadata(BucketMetadata<K, Example> metadata);
 
       abstract Builder<K> setNumBuckets(int numBuckets);
 
@@ -170,7 +169,7 @@ public class JsonSortedBucketIO {
 
       abstract Builder<K> setSorterMemoryMb(int sorterMemoryMb);
 
-      // JSON specific
+      // TFRecord specific
       abstract Builder<K> setKeyField(String keyField);
 
       abstract Builder<K> setCompression(Compression compression);
@@ -178,7 +177,7 @@ public class JsonSortedBucketIO {
       abstract Write<K> build();
     }
 
-    public Write<K> withMetadata(BucketMetadata<K, TableRow> metadata) {
+    public Write<K> withMetadata(BucketMetadata<K, Example> metadata) {
       return toBuilder().setMetadata(metadata).build();
     }
 
@@ -215,14 +214,14 @@ public class JsonSortedBucketIO {
     }
 
     @Override
-    public WriteResult expand(PCollection<TableRow> input) {
+    public WriteResult expand(PCollection<Example> input) {
       Preconditions.checkNotNull(getOutputDirectory(), "outputDirectory is not set");
 
-      BucketMetadata<K, TableRow> metadata = getMetadata();
+      BucketMetadata<K, Example> metadata = getMetadata();
       if (metadata == null) {
         try {
           metadata =
-              new JsonBucketMetadata<>(
+              new TensorFlowMetadata<>(
                   getNumBuckets(), getNumShards(), getKeyClass(), getHashType(), getKeyField());
         } catch (CannotProvideCoderException | Coder.NonDeterministicException e) {
           throw new IllegalStateException(e);
@@ -235,8 +234,8 @@ public class JsonSortedBucketIO {
         tempDirectory = outputDirectory;
       }
 
-      final JsonFileOperations fileOperations = JsonFileOperations.of(getCompression());
-      SortedBucketSink<K, TableRow> sink =
+      final TensorFlowFileOperations fileOperations = TensorFlowFileOperations.of(getCompression());
+      SortedBucketSink<K, Example> sink =
           new SortedBucketSink<>(
               metadata,
               outputDirectory,
