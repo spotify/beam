@@ -118,12 +118,12 @@ public abstract class BucketMetadata<K, V> implements Serializable, HasDisplayDa
 
   @Override
   public void populateDisplayData(Builder builder) {
-    builder.add(DisplayData.item("numBuckets", numBuckets).withLabel("numBuckets"));
-    builder.add(DisplayData.item("numShards", numShards).withLabel("numShards"));
-    builder.add(DisplayData.item("version", version).withLabel("version"));
-    builder.add(DisplayData.item("hashType", hashType.toString()).withLabel("hashType"));
-    builder.add(DisplayData.item("keyClass", keyClass).withLabel("keyClass"));
-    builder.add(DisplayData.item("keyCoder", keyCoder.getClass()).withLabel("keyCoder"));
+    builder.add(DisplayData.item("numBuckets", numBuckets));
+    builder.add(DisplayData.item("numShards", numShards));
+    builder.add(DisplayData.item("version", version));
+    builder.add(DisplayData.item("hashType", hashType.toString()));
+    builder.add(DisplayData.item("keyClass", keyClass));
+    builder.add(DisplayData.item("keyCoder", keyCoder.getClass()));
   }
 
   /** Enumerated hashing schemes available for an SMB write. */

@@ -92,7 +92,7 @@ class AvroBucketMetadata<K, V extends GenericRecord> extends BucketMetadata<K, V
   @Override
   public void populateDisplayData(Builder builder) {
     super.populateDisplayData(builder);
-    builder.add(DisplayData.item("keyField", keyField).withLabel("keyField"));
+    builder.add(DisplayData.item("keyField", keyField));
   }
 
   // Coders for types commonly used as keys in Avro
