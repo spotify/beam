@@ -36,6 +36,8 @@ import org.apache.beam.sdk.io.AvroIO;
 import org.apache.beam.sdk.io.Compression;
 import org.apache.beam.sdk.io.FileIO;
 import org.apache.beam.sdk.io.SerializableAvroCodecFactory;
+import org.apache.beam.sdk.transforms.display.DisplayData;
+import org.apache.beam.sdk.transforms.display.DisplayData.Builder;
 import org.apache.beam.sdk.util.MimeTypes;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.base.Supplier;
 
@@ -72,6 +74,13 @@ class AvroFileOperations<ValueT> extends FileOperations<ValueT> {
     // Use reflection to get SR schema
     final Schema schema = new ReflectData(recordClass.getClassLoader()).getSchema(recordClass);
     return new AvroFileOperations<>(recordClass, schema, codec);
+  }
+
+  @Override
+  public void populateDisplayData(Builder builder) {
+    super.populateDisplayData(builder);
+    builder.add(DisplayData.item("codecFactory", codec.getCodec().getClass()));
+    builder.add(DisplayData.item("schema", schemaSupplier.schema.getFullName()));
   }
 
   @Override

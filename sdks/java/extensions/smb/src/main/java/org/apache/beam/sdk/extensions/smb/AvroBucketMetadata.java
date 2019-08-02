@@ -34,6 +34,8 @@ import org.apache.beam.sdk.coders.CannotProvideCoderException;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.coders.CoderException;
 import org.apache.beam.sdk.coders.StringUtf8Coder;
+import org.apache.beam.sdk.transforms.display.DisplayData;
+import org.apache.beam.sdk.transforms.display.DisplayData.Builder;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.collect.ImmutableMap;
 
 /**
@@ -85,6 +87,12 @@ class AvroBucketMetadata<K, V extends GenericRecord> extends BucketMetadata<K, V
     @SuppressWarnings("unchecked")
     K key = (K) node.get(keyPath[keyPath.length - 1]);
     return key;
+  }
+
+  @Override
+  public void populateDisplayData(Builder builder) {
+    super.populateDisplayData(builder);
+    builder.add(DisplayData.item("keyField", keyField).withLabel("keyField"));
   }
 
   // Coders for types commonly used as keys in Avro

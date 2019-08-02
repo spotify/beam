@@ -21,6 +21,8 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import org.apache.beam.sdk.coders.CannotProvideCoderException;
 import org.apache.beam.sdk.coders.Coder.NonDeterministicException;
+import org.apache.beam.sdk.transforms.display.DisplayData;
+import org.apache.beam.sdk.transforms.display.DisplayData.Builder;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.base.Preconditions;
 import org.tensorflow.example.BytesList;
 import org.tensorflow.example.Example;
@@ -74,5 +76,11 @@ class TensorFlowMetadata<K> extends BucketMetadata<K, Example> {
       return (K) Float.valueOf(values.getValue(0));
     }
     throw new IllegalStateException("Unsupported key class " + getKeyClass());
+  }
+
+  @Override
+  public void populateDisplayData(Builder builder) {
+    super.populateDisplayData(builder);
+    builder.add(DisplayData.item("keyField", keyField));
   }
 }

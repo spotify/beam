@@ -36,6 +36,9 @@ import org.apache.beam.sdk.coders.Coder.NonDeterministicException;
 import org.apache.beam.sdk.coders.CoderException;
 import org.apache.beam.sdk.coders.CoderRegistry;
 import org.apache.beam.sdk.coders.StringUtf8Coder;
+import org.apache.beam.sdk.transforms.display.DisplayData;
+import org.apache.beam.sdk.transforms.display.DisplayData.Builder;
+import org.apache.beam.sdk.transforms.display.HasDisplayData;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.annotations.VisibleForTesting;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.base.Preconditions;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.hash.HashFunction;
@@ -60,7 +63,7 @@ import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.hash.Hashing;
  * @param <V> the type of the values in a bucket
  */
 @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "type")
-public abstract class BucketMetadata<K, V> implements Serializable {
+public abstract class BucketMetadata<K, V> implements Serializable, HasDisplayData {
 
   @JsonIgnore public static final int CURRENT_VERSION = 0;
 
@@ -111,6 +114,16 @@ public abstract class BucketMetadata<K, V> implements Serializable {
   @JsonIgnore
   protected Map<Class<?>, Coder<?>> coderOverrides() {
     return Collections.emptyMap();
+  }
+
+  @Override
+  public void populateDisplayData(Builder builder) {
+    builder.add(DisplayData.item("numBuckets", numBuckets).withLabel("numBuckets"));
+    builder.add(DisplayData.item("numShards", numShards).withLabel("numShards"));
+    builder.add(DisplayData.item("version", version).withLabel("version"));
+    builder.add(DisplayData.item("hashType", hashType.toString()).withLabel("hashType"));
+    builder.add(DisplayData.item("keyClass", keyClass).withLabel("keyClass"));
+    builder.add(DisplayData.item("keyCoder", keyCoder.getClass()).withLabel("keyCoder"));
   }
 
   /** Enumerated hashing schemes available for an SMB write. */
