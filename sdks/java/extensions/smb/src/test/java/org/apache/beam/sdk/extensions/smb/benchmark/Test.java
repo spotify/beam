@@ -27,6 +27,7 @@ import java.util.Collections;
 /** Test public API access level. */
 public class Test {
   public static void main(String[] args) throws Coder.NonDeterministicException, CannotProvideCoderException, IOException {
+    // public API
     AvroSortedBucketIO.write(String.class, "name", AvroGeneratedUser.class).to("avro");
     JsonSortedBucketIO.write(String.class, "name").to("json");
     TensorFlowBucketIO.write(String.class, "name").to("tf");
@@ -39,6 +40,7 @@ public class Test {
         .and(JsonSortedBucketIO.read(json).from("json"))
         .and(TensorFlowBucketIO.read(tf).from("tf"));
 
+    // extendable API
     new SortedBucketSink<>(
         new MyMetadata(8, 1, String.class, HashType.MURMUR3_32),
         FileSystems.matchNewResource("output", true),

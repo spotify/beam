@@ -37,10 +37,10 @@ import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.collect.Immutabl
  */
 public class SortedBucketIO {
 
-  public static final int DEFAULT_NUM_BUCKETS = 128;
-  public static final int DEFAULT_NUM_SHARDS = 1;
-  public static final HashType DEFAULT_HASH_TYPE = HashType.MURMUR3_128;
-  public static final int DEFAULT_SORTER_MEMORY_MB = 128;
+  static final int DEFAULT_NUM_BUCKETS = 128;
+  static final int DEFAULT_NUM_SHARDS = 1;
+  static final HashType DEFAULT_HASH_TYPE = HashType.MURMUR3_128;
+  static final int DEFAULT_SORTER_MEMORY_MB = 128;
 
   public static <K> CoGbkReadBuilder<K> read(Class<K> keyClass) {
     return new CoGbkReadBuilder<>(keyClass);

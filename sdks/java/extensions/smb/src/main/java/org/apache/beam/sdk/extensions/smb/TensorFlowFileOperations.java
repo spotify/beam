@@ -33,7 +33,7 @@ import org.tensorflow.example.Example;
  * {@link FileOperations} implementation for TensorFlow TFRecord files with TensorFlow {@link
  * Example} records.
  */
-public class TensorFlowFileOperations extends FileOperations<Example> {
+class TensorFlowFileOperations extends FileOperations<Example> {
 
   private TensorFlowFileOperations(Compression compression) {
     super(compression, MimeTypes.BINARY);
