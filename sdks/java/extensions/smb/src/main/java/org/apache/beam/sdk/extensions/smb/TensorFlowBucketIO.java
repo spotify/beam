@@ -241,7 +241,7 @@ public class TensorFlowBucketIO {
       BucketMetadata<K, Example> metadata;
       try {
         metadata =
-            new TensorFlowMetadata<>(
+            new TensorFlowBucketMetadata<>(
                 getNumBuckets(), getNumShards(), getKeyClass(), getHashType(), getKeyField());
       } catch (CannotProvideCoderException | Coder.NonDeterministicException e) {
         throw new IllegalStateException(e);

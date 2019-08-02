@@ -31,8 +31,8 @@ import org.tensorflow.example.Features;
 import org.tensorflow.example.FloatList;
 import org.tensorflow.example.Int64List;
 
-/** Unit tests for {@link TensorFlowMetadata}. */
-public class TensorFlowMetadataTest {
+/** Unit tests for {@link TensorFlowBucketMetadata}. */
+public class TensorFlowBucketMetadataTest {
 
   @Test
   public void test() throws Exception {
@@ -63,23 +63,23 @@ public class TensorFlowMetadataTest {
 
     Assert.assertArrayEquals(
         "data".getBytes(Charset.defaultCharset()),
-        new TensorFlowMetadata<>(1, 1, byte[].class, HashType.MURMUR3_32, "bytes")
+        new TensorFlowBucketMetadata<>(1, 1, byte[].class, HashType.MURMUR3_32, "bytes")
             .extractKey(example));
 
     Assert.assertEquals(
         (Long) 12345L,
-        new TensorFlowMetadata<>(1, 1, Long.class, HashType.MURMUR3_32, "int").extractKey(example));
+        new TensorFlowBucketMetadata<>(1, 1, Long.class, HashType.MURMUR3_32, "int").extractKey(example));
 
     Assert.assertThrows(
         NonDeterministicException.class,
         () ->
-            new TensorFlowMetadata<>(1, 1, Float.class, HashType.MURMUR3_32, "float")
+            new TensorFlowBucketMetadata<>(1, 1, Float.class, HashType.MURMUR3_32, "float")
                 .extractKey(example));
 
     Assert.assertThrows(
         IllegalStateException.class,
         () ->
-            new TensorFlowMetadata<>(1, 1, String.class, HashType.MURMUR3_32, "bytes")
+            new TensorFlowBucketMetadata<>(1, 1, String.class, HashType.MURMUR3_32, "bytes")
                 .extractKey(example));
   }
 }
