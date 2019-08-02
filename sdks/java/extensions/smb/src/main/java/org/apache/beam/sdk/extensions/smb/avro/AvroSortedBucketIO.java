@@ -37,14 +37,31 @@ import org.apache.beam.sdk.io.fs.ResourceId;
 import org.apache.beam.sdk.transforms.PTransform;
 import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.TupleTag;
+import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.base.Preconditions;
 
 /** Abstracts SMB sources and sinks for Avro-typed values. */
 public class AvroSortedBucketIO {
   private static final String DEFAULT_SUFFIX = ".avro";
+  private static final CodecFactory DEFAULT_CODEC = CodecFactory.snappyCodec();
 
-  ////////////////////////////////////////////////////////////////////////////////
-  // Write
-  ////////////////////////////////////////////////////////////////////////////////
+  public static Read<GenericRecord> read(TupleTag<GenericRecord> tupleTag, Schema schema) {
+    return new AutoValue_AvroSortedBucketIO_Read.Builder<>()
+        .setTupleTag(tupleTag)
+        .setFilenameSuffix(DEFAULT_SUFFIX)
+        .setCodec(DEFAULT_CODEC)
+        .setSchema(schema)
+        .build();
+  }
+
+  public static <T extends SpecificRecordBase> Read<T> read(
+      TupleTag<T> tupleTag, Class<T> recordClass) {
+    return new AutoValue_AvroSortedBucketIO_Read.Builder<T>()
+        .setTupleTag(tupleTag)
+        .setFilenameSuffix(DEFAULT_SUFFIX)
+        .setCodec(DEFAULT_CODEC)
+        .setRecordClass(recordClass)
+        .build();
+  }
 
   public static <K> Write<K, GenericRecord> write(
       Class<K> keyClass, String keyField, Schema schema) {
@@ -68,8 +85,75 @@ public class AvroSortedBucketIO {
         .setKeyClass(keyClass)
         .setKeyField(keyField)
         .setFilenameSuffix(DEFAULT_SUFFIX)
-        .setCodec(CodecFactory.snappyCodec());
+        .setCodec(DEFAULT_CODEC);
   }
+
+  ////////////////////////////////////////////////////////////////////////////////
+  // Read
+  ////////////////////////////////////////////////////////////////////////////////
+
+  @AutoValue
+  public abstract static class Read<T extends GenericRecord> extends SortedBucketIO.Read<T> {
+    abstract TupleTag<T> getTupleTag();
+
+    @Nullable
+    abstract ResourceId getFilenamePrefix();
+
+    abstract String getFilenameSuffix();
+
+    @Nullable
+    abstract Schema getSchema();
+
+    @Nullable
+    abstract Class<T> getRecordClass();
+
+    abstract CodecFactory getCodec();
+
+    abstract Builder<T> toBuilder();
+
+    @AutoValue.Builder
+    abstract static class Builder<T extends GenericRecord> {
+      abstract Builder<T> setTupleTag(TupleTag<T> tupleTag);
+
+      abstract Builder<T> setFilenamePrefix(ResourceId filenamePrefix);
+
+      abstract Builder<T> setFilenameSuffix(String filenameSuffix);
+
+      abstract Builder<T> setSchema(Schema schema);
+
+      abstract Builder<T> setRecordClass(Class<T> recordClass);
+
+      abstract Builder<T> setCodec(CodecFactory codec);
+
+      abstract Read<T> build();
+    }
+
+    public Read<T> from(String filenamePrefix) {
+      return toBuilder()
+          .setFilenamePrefix(FileSystems.matchNewResource(filenamePrefix, true))
+          .build();
+    }
+
+    public Read<T> withFilenameSuffix(String filenameSuffix) {
+      return toBuilder().setFilenameSuffix(filenameSuffix).build();
+    }
+
+    @Override
+    protected BucketedInput<?, T> toBucketedInput() {
+      @SuppressWarnings("unchecked")
+      final AvroFileOperations<T> fileOperations =
+          getRecordClass() == null
+              ? AvroFileOperations.of(getSchema(), getCodec())
+              : (AvroFileOperations<T>)
+                  AvroFileOperations.of((Class<SpecificRecordBase>) getRecordClass(), getCodec());
+      return new BucketedInput<>(
+          getTupleTag(), getFilenamePrefix(), getFilenameSuffix(), fileOperations);
+    }
+  }
+
+  ////////////////////////////////////////////////////////////////////////////////
+  // Write
+  ////////////////////////////////////////////////////////////////////////////////
 
   /** Write records to sorted bucket files. */
   @AutoValue
@@ -182,6 +266,8 @@ public class AvroSortedBucketIO {
 
     @Override
     public WriteResult expand(PCollection<T> input) {
+      Preconditions.checkNotNull(getOutputDirectory(), "outputDirectory is not set");
+
       BucketMetadata<K, T> metadata = getMetadata();
       if (metadata == null) {
         try {
@@ -205,42 +291,15 @@ public class AvroSortedBucketIO {
               ? AvroFileOperations.of(getSchema(), getCodec())
               : (AvroFileOperations<T>)
                   AvroFileOperations.of((Class<SpecificRecordBase>) getRecordClass(), getCodec());
-      SortedBucketSink<K, T> write =
-          SortedBucketIO.write(
+      SortedBucketSink<K, T> sink =
+          new SortedBucketSink<>(
               metadata,
               outputDirectory,
               tempDirectory,
               getFilenameSuffix(),
               fileOperations,
               getSorterMemoryMb());
-      return input.apply(write);
+      return input.apply(sink);
     }
-  }
-
-  ////////////////////////////////////////////////////////////////////////////////
-
-  @SuppressWarnings("unchecked")
-  public static <KeyT> BucketedInput<KeyT, GenericRecord> source(
-      TupleTag<GenericRecord> tupleTag,
-      Schema schema,
-      ResourceId filenamePrefix,
-      String filenameSuffix) {
-    return new BucketedInput<>(
-        tupleTag,
-        filenamePrefix,
-        filenameSuffix != null ? filenameSuffix : DEFAULT_SUFFIX,
-        AvroFileOperations.of(schema, CodecFactory.snappyCodec()));
-  }
-
-  public static <KeyT, ValueT extends SpecificRecordBase> BucketedInput<KeyT, ValueT> source(
-      TupleTag<ValueT> tupleTag,
-      Class<ValueT> recordClass,
-      ResourceId filenamePrefix,
-      String filenameSuffix) {
-    return new BucketedInput<>(
-        tupleTag,
-        filenamePrefix,
-        filenameSuffix != null ? filenameSuffix : DEFAULT_SUFFIX,
-        AvroFileOperations.of(recordClass, CodecFactory.snappyCodec()));
   }
 }

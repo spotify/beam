@@ -169,10 +169,10 @@ public class SortedBucketSinkTest {
       int numBuckets, int numShards, SerializableConsumer<Map<BucketShardId, List<String>>> checkFn)
       throws Exception {
     final TestBucketMetadata metadata = TestBucketMetadata.of(numBuckets, numShards);
-    final SMBFilenamePolicy policy = new SMBFilenamePolicy(fromFolder(output), ".txt");
 
     final SortedBucketSink<String, String> sink =
-        new SortedBucketSink<>(metadata, policy, new TestFileOperations(), fromFolder(temp), 1);
+        new SortedBucketSink<>(
+            metadata, fromFolder(output), fromFolder(temp), ".txt", new TestFileOperations(), 1);
 
     @SuppressWarnings("deprecation")
     final Reshuffle.ViaRandomKey<String> reshuffle = Reshuffle.viaRandomKey();

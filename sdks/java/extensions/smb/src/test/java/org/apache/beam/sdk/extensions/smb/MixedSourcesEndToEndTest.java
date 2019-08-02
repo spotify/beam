@@ -37,7 +37,6 @@ import org.apache.beam.sdk.extensions.smb.BucketMetadata.HashType;
 import org.apache.beam.sdk.extensions.smb.avro.AvroSortedBucketIO;
 import org.apache.beam.sdk.extensions.smb.json.JsonSortedBucketIO;
 import org.apache.beam.sdk.io.Compression;
-import org.apache.beam.sdk.io.LocalResources;
 import org.apache.beam.sdk.io.gcp.bigquery.TableRowJsonCoder;
 import org.apache.beam.sdk.testing.NeedsRunner;
 import org.apache.beam.sdk.testing.PAssert;
@@ -151,21 +150,13 @@ public class MixedSourcesEndToEndTest {
 
     TupleTag<GenericRecord> lhsTag = new TupleTag<>();
     TupleTag<TableRow> rhsTag = new TupleTag<>();
-    final SortedBucketSource<String> sourceTransform =
+
+    final SortedBucketIO.CoGbkRead<String> sourceTransform =
         SortedBucketIO.read(String.class)
             .of(
-                AvroSortedBucketIO.source(
-                    lhsTag,
-                    GR_USER_SCHEMA,
-                    LocalResources.fromFile(sourceFolder1.getRoot(), true),
-                    null))
-            .and(
-                JsonSortedBucketIO.source(
-                    rhsTag,
-                    LocalResources.fromFile(sourceFolder2.getRoot(), true),
-                    null,
-                    Compression.UNCOMPRESSED))
-            .build();
+                AvroSortedBucketIO.read(lhsTag, GR_USER_SCHEMA)
+                    .from(sourceFolder1.getRoot().getPath()))
+            .and(JsonSortedBucketIO.read(rhsTag).from(sourceFolder2.getRoot().getPath()));
 
     final PCollection<KV<String, KV<Iterable<GenericRecord>, Iterable<TableRow>>>> joinedSources =
         pipeline3

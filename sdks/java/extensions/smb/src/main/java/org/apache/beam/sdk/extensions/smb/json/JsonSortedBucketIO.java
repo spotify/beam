@@ -35,14 +35,19 @@ import org.apache.beam.sdk.io.fs.ResourceId;
 import org.apache.beam.sdk.transforms.PTransform;
 import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.TupleTag;
+import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.base.Preconditions;
 
 /** Abstracts SMB sources and sinks for JSON records. */
 public class JsonSortedBucketIO {
   private static final String DEFAULT_SUFFIX = ".json";
 
-  ////////////////////////////////////////////////////////////////////////////////
-  // Write
-  ////////////////////////////////////////////////////////////////////////////////
+  public static Read read(TupleTag<TableRow> tupleTag) {
+    return new AutoValue_JsonSortedBucketIO_Read.Builder()
+        .setTupleTag(tupleTag)
+        .setFilenameSuffix(DEFAULT_SUFFIX)
+        .setCompression(Compression.AUTO)
+        .build();
+  }
 
   public static <K> Write<K> write(Class<K> keyClass, String keyField) {
     return new AutoValue_JsonSortedBucketIO_Write.Builder<K>()
@@ -56,6 +61,60 @@ public class JsonSortedBucketIO {
         .setCompression(Compression.UNCOMPRESSED)
         .build();
   }
+
+  ////////////////////////////////////////////////////////////////////////////////
+  // Read
+  ////////////////////////////////////////////////////////////////////////////////
+
+  @AutoValue
+  public abstract static class Read extends SortedBucketIO.Read<TableRow> {
+    abstract TupleTag<TableRow> getTupleTag();
+
+    @Nullable
+    abstract ResourceId getFilenamePrefix();
+
+    abstract String getFilenameSuffix();
+
+    abstract Compression getCompression();
+
+    abstract Builder toBuilder();
+
+    @AutoValue.Builder
+    abstract static class Builder {
+      abstract Builder setTupleTag(TupleTag<TableRow> tupleTag);
+
+      abstract Builder setFilenamePrefix(ResourceId filenamePrefix);
+
+      abstract Builder setFilenameSuffix(String filenameSuffix);
+
+      abstract Builder setCompression(Compression compression);
+
+      abstract Read build();
+    }
+
+    public Read from(String filenamePrefix) {
+      return toBuilder()
+          .setFilenamePrefix(FileSystems.matchNewResource(filenamePrefix, true))
+          .build();
+    }
+
+    public Read withFilenameSuffix(String filenameSuffix) {
+      return toBuilder().setFilenameSuffix(filenameSuffix).build();
+    }
+
+    @Override
+    protected BucketedInput<?, TableRow> toBucketedInput() {
+      return new BucketedInput<>(
+          getTupleTag(),
+          getFilenamePrefix(),
+          getFilenameSuffix(),
+          JsonFileOperations.of(getCompression()));
+    }
+  }
+
+  ////////////////////////////////////////////////////////////////////////////////
+  // Write
+  ////////////////////////////////////////////////////////////////////////////////
 
   /** Write records to sorted bucket files. */
   @AutoValue
@@ -157,6 +216,8 @@ public class JsonSortedBucketIO {
 
     @Override
     public WriteResult expand(PCollection<TableRow> input) {
+      Preconditions.checkNotNull(getOutputDirectory(), "outputDirectory is not set");
+
       BucketMetadata<K, TableRow> metadata = getMetadata();
       if (metadata == null) {
         try {
@@ -175,29 +236,15 @@ public class JsonSortedBucketIO {
       }
 
       final JsonFileOperations fileOperations = JsonFileOperations.of(getCompression());
-      SortedBucketSink<K, TableRow> write =
-          SortedBucketIO.write(
+      SortedBucketSink<K, TableRow> sink =
+          new SortedBucketSink<>(
               metadata,
               outputDirectory,
               tempDirectory,
               getFilenameSuffix(),
               fileOperations,
               getSorterMemoryMb());
-      return input.apply(write);
+      return input.apply(sink);
     }
-  }
-
-  ////////////////////////////////////////////////////////////////////////////////
-
-  public static <KeyT> BucketedInput<KeyT, TableRow> source(
-      TupleTag<TableRow> tupleTag,
-      ResourceId filenamePrefix,
-      String filenameSuffix,
-      Compression compression) {
-    return new BucketedInput<>(
-        tupleTag,
-        filenamePrefix,
-        filenameSuffix != null ? filenameSuffix : DEFAULT_SUFFIX + compression.getSuggestedSuffix(),
-        JsonFileOperations.of(compression));
   }
 }

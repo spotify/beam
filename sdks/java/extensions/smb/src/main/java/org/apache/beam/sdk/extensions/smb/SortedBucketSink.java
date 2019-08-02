@@ -100,20 +100,21 @@ public class SortedBucketSink<K, V> extends PTransform<PCollection<V>, WriteResu
 
   private final BucketMetadata<K, V> bucketMetadata;
   private final SMBFilenamePolicy filenamePolicy;
-  private final FileOperations<V> fileOperations;
   private final ResourceId tempDirectory;
+  private final FileOperations<V> fileOperations;
   private final int sorterMemoryMb;
 
   public SortedBucketSink(
       BucketMetadata<K, V> bucketMetadata,
-      SMBFilenamePolicy filenamePolicy,
-      FileOperations<V> fileOperations,
+      ResourceId outputDirectory,
       ResourceId tempDirectory,
+      String filenameSuffix,
+      FileOperations<V> fileOperations,
       int sorterMemoryMb) {
     this.bucketMetadata = bucketMetadata;
-    this.filenamePolicy = filenamePolicy;
-    this.fileOperations = fileOperations;
+    this.filenamePolicy = new SMBFilenamePolicy(outputDirectory, filenameSuffix);
     this.tempDirectory = tempDirectory;
+    this.fileOperations = fileOperations;
     this.sorterMemoryMb = sorterMemoryMb;
   }
 
@@ -408,9 +409,8 @@ public class SortedBucketSink<K, V> extends PTransform<PCollection<V>, WriteResu
         for (BucketShardId id : missingFiles) {
           final ResourceId dstFile = fileAssignment.forBucket(id, bucketMetadata);
 
-          try (final Writer<?> ignored = fileOperations.createWriter(dstFile)) {
-            c.output(KV.of(id, dstFile));
-          }
+          try (final Writer<?> ignored = fileOperations.createWriter(dstFile)) {}
+          c.output(KV.of(id, dstFile));
         }
 
         // Rename written files
