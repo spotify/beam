@@ -20,6 +20,10 @@ package org.apache.beam.sdk.extensions.smb.benchmark;
 import com.google.api.services.bigquery.model.TableRow;
 import java.io.IOException;
 import java.util.Collections;
+import org.apache.avro.Schema;
+import org.apache.avro.file.CodecFactory;
+import org.apache.avro.specific.SpecificRecordBase;
+import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.coders.CannotProvideCoderException;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.extensions.smb.AvroSortedBucketIO;
@@ -36,7 +40,10 @@ import org.apache.beam.sdk.io.AvroGeneratedUser;
 import org.apache.beam.sdk.io.Compression;
 import org.apache.beam.sdk.io.FileIO;
 import org.apache.beam.sdk.io.FileSystems;
+import org.apache.beam.sdk.transforms.join.CoGbkResult;
 import org.apache.beam.sdk.util.MimeTypes;
+import org.apache.beam.sdk.values.KV;
+import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.TupleTag;
 import org.tensorflow.example.Example;
 
@@ -74,6 +81,48 @@ public class Test {
                 FileSystems.matchSingleFileSpec("in").resourceId(),
                 ".avro",
                 new MyFileOperation())));
+  }
+
+  private static class AvroAutoGenClass extends SpecificRecordBase {
+    @Override
+    public Schema getSchema() {
+      return null;
+    }
+
+    @Override
+    public Object get(int field) {
+      return null;
+    }
+
+    @Override
+    public void put(int field, Object value) {}
+  }
+
+  public static void test() {
+    Pipeline p = null;
+
+    final TupleTag<AvroAutoGenClass> avroTag = new TupleTag<>();
+    final TupleTag<TableRow> jsonTag = new TupleTag<>();
+    final TupleTag<Example> tfTag = new TupleTag<>();
+
+    PCollection<KV<String, CoGbkResult>> coGbkResultCollection =
+        p.apply(
+            SortedBucketIO.read(String.class)
+                .of(
+                    AvroSortedBucketIO.read(avroTag, AvroAutoGenClass.class)
+                        .from("/path/to/avro")
+                        .withSuffix(".avro")
+                        .withCodec(CodecFactory.snappyCodec()))
+                .and(
+                    JsonSortedBucketIO.read(jsonTag)
+                        .from("/path/to/json")
+                        .withSuffix(".json")
+                        .withCompression(Compression.AUTO))
+                .and(
+                    TensorFlowBucketIO.read(tfTag)
+                        .from("/path/to/tf")
+                        .withSuffix(".tfrecord")
+                        .withCompression(Compression.AUTO)));
   }
 
   private static class MyMetadata extends BucketMetadata<String, String> {
