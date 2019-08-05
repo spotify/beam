@@ -17,11 +17,15 @@
  */
 package org.apache.beam.sdk.extensions.smb;
 
+import static org.apache.beam.sdk.transforms.display.DisplayDataMatchers.hasDisplayItem;
+
 import org.apache.beam.sdk.extensions.smb.BucketMetadata.HashType;
 import org.apache.beam.sdk.extensions.smb.SMBFilenamePolicy.FileAssignment;
 import org.apache.beam.sdk.io.LocalResources;
 import org.apache.beam.sdk.io.fs.ResolveOptions.StandardResolveOptions;
 import org.apache.beam.sdk.io.fs.ResourceId;
+import org.apache.beam.sdk.transforms.display.DisplayData;
+import org.hamcrest.MatcherAssert;
 import org.joda.time.Instant;
 import org.joda.time.format.DateTimeFormat;
 import org.junit.Assert;
@@ -120,6 +124,18 @@ public class SMBFilenamePolicyTest {
             testFilenamePolicy(destination)
                 .forTempFiles(tmpDstResource)
                 .forBucket(BucketShardId.of(2, 100), metadata));
+  }
+
+  @Test
+  public void testDisplayData() {
+    final SMBFilenamePolicy policy = testFilenamePolicy(destination);
+
+    final DisplayData displayData = DisplayData.from(policy.forDestination());
+    MatcherAssert.assertThat(
+        displayData,
+        hasDisplayItem(
+            "directory", LocalResources.fromFile(destination.getRoot(), true).toString()));
+    MatcherAssert.assertThat(displayData, hasDisplayItem("filenameSuffix", SUFFIX));
   }
 
   private static SMBFilenamePolicy testFilenamePolicy(TemporaryFolder folder) {
