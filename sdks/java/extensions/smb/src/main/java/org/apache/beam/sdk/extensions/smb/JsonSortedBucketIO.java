@@ -230,8 +230,9 @@ public class JsonSortedBucketIO {
 
       BucketMetadata<K, TableRow> metadata;
       try {
-        metadata = new JsonBucketMetadata<>(
-            getNumBuckets(), getNumShards(), getKeyClass(), getHashType(), getKeyField());
+        metadata =
+            new JsonBucketMetadata<>(
+                getNumBuckets(), getNumShards(), getKeyClass(), getHashType(), getKeyField());
       } catch (CannotProvideCoderException | Coder.NonDeterministicException e) {
         throw new IllegalStateException(e);
       }
