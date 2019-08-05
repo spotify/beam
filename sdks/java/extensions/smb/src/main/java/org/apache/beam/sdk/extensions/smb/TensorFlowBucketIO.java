@@ -115,6 +115,11 @@ public class TensorFlowBucketIO {
       return toBuilder().setFilenameSuffix(filenameSuffix).build();
     }
 
+    /** Specifies the input file {@link Compression}. */
+    public Read withCompression(Compression compression) {
+      return toBuilder().setCompression(compression).build();
+    }
+
     @Override
     protected BucketedInput<?, Example> toBucketedInput() {
       return new BucketedInput<>(
