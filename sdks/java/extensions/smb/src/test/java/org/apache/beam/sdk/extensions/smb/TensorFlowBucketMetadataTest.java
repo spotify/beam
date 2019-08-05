@@ -68,7 +68,8 @@ public class TensorFlowBucketMetadataTest {
 
     Assert.assertEquals(
         (Long) 12345L,
-        new TensorFlowBucketMetadata<>(1, 1, Long.class, HashType.MURMUR3_32, "int").extractKey(example));
+        new TensorFlowBucketMetadata<>(1, 1, Long.class, HashType.MURMUR3_32, "int")
+            .extractKey(example));
 
     Assert.assertThrows(
         NonDeterministicException.class,
