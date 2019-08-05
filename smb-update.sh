@@ -10,25 +10,26 @@ fi
 SRC=$1
 DST=$2
 
-echo "Updating master"
-git fetch origin
-git fetch upstream
-git checkout master
-git reset --hard upstream/master
-git push
+#echo "Updating master"
+#git fetch origin
+#git fetch upstream
+#git checkout master
+#git reset --hard upstream/master
+#git push
+#
+#echo "Updating source branch $SRC"
+#git checkout $SRC
+#git rebase upstream/master
+#git push --force
+#
+#echo "Updating destination branch $DST"
+#git checkout $DST
+#git reset --hard origin/$DST
+#git rebase upstream/master
 
-echo "Updating source branch $SRC"
-git checkout $SRC
-git rebase upstream/master
-git push --force
-
-echo "Updating destination branch $DST"
 git checkout $DST
-git reset --hard origin/$DST
-git rebase upstream/master
-
 echo "Updating files"
-for FILE in $(git diff upstream/master --name-only); do
+for FILE in $(git diff master --name-only); do
     git checkout $SRC -- $FILE
 done
 
