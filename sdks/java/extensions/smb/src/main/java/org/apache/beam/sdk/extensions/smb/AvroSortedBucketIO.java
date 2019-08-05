@@ -142,6 +142,11 @@ public class AvroSortedBucketIO {
       return toBuilder().setFilenameSuffix(filenameSuffix).build();
     }
 
+    /** Specifies the input file {@link CodecFactory}. */
+    public Read withCodec(CodecFactory codec) {
+      return toBuilder().setCodec(codec).build();
+    }
+
     @Override
     protected BucketedInput<?, T> toBucketedInput() {
       @SuppressWarnings("unchecked")

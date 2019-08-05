@@ -107,6 +107,11 @@ public class JsonSortedBucketIO {
       return toBuilder().setFilenameSuffix(filenameSuffix).build();
     }
 
+    /** Specifies the input file {@link Compression}. */
+    public Read withCompression(Compression compression) {
+      return toBuilder().setCompression(compression).build();
+    }
+
     @Override
     protected BucketedInput<?, TableRow> toBucketedInput() {
       return new BucketedInput<>(
