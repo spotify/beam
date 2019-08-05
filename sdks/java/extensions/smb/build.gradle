@@ -40,14 +40,4 @@ dependencies {
   testCompile library.java.hamcrest_library
   testCompile library.java.junit
   testRuntimeOnly project(":runners:direct-java")
-
-  task skewSinkBenchmark(type: JavaExec) {
-    dependsOn ":runners:google-cloud-dataflow-java:worker:shadowJar"
-
-    def dataflowWorkerJar = project(":runners:google-cloud-dataflow-java:worker").shadowJar.archivePath
-
-    classpath = sourceSets.test.runtimeClasspath
-    main = "org.apache.beam.sdk.extensions.smb.benchmark.SkewSinkBenchmark"
-    args "--runner=DataflowRunner","--tempLocation=gs://clairem/temp", "--project=scio-playground", "--dataflowWorkerJar=${dataflowWorkerJar}"
-  }
 }
