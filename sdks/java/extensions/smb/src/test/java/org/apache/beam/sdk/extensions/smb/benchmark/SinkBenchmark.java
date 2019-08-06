@@ -17,16 +17,13 @@
  */
 package org.apache.beam.sdk.extensions.smb.benchmark;
 
-import static org.apache.beam.sdk.coders.Coder.NonDeterministicException;
-
 import com.google.api.services.bigquery.model.TableRow;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.avro.file.CodecFactory;
 import org.apache.beam.sdk.Pipeline;
-import org.apache.beam.sdk.PipelineResult.State;
-import org.apache.beam.sdk.coders.CannotProvideCoderException;
+import org.apache.beam.sdk.PipelineResult;
 import org.apache.beam.sdk.extensions.smb.AvroSortedBucketIO;
 import org.apache.beam.sdk.extensions.smb.BucketMetadata;
 import org.apache.beam.sdk.extensions.smb.JsonSortedBucketIO;
@@ -36,7 +33,6 @@ import org.apache.beam.sdk.io.Compression;
 import org.apache.beam.sdk.io.GenerateSequence;
 import org.apache.beam.sdk.io.gcp.bigquery.TableRowJsonCoder;
 import org.apache.beam.sdk.options.Default;
-import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.options.PipelineOptionsFactory;
 import org.apache.beam.sdk.transforms.FlatMapElements;
 import org.apache.beam.sdk.values.PCollection;
@@ -50,17 +46,8 @@ import org.apache.beam.sdk.values.TypeDescriptor;
  * key.
  */
 public class SinkBenchmark {
-
   /** SinkOptions. */
-  public interface SinkOptions extends PipelineOptions {
-    String getAvroDestination();
-
-    void setAvroDestination(String value);
-
-    String getJsonDestination();
-
-    void setJsonDestination(String value);
-
+  public interface SinkOptions extends BenchmarkOptions {
     @Default.Integer(10000000)
     int getNumKeys();
 
@@ -71,36 +58,37 @@ public class SinkBenchmark {
 
     void setMaxRecordsPerKey(int value);
 
-    @Default.Integer(10)
-    int getAvroNumShards();
-
-    void setAvroNumShards(int value);
-
     @Default.Integer(128)
     int getAvroNumBuckets();
 
     void setAvroNumBuckets(int value);
 
     @Default.Integer(10)
-    int getJsonNumShards();
+    int getAvroNumShards();
 
-    void setJsonNumShards(int value);
+    void setAvroNumShards(int value);
 
     @Default.Integer(128)
     int getJsonNumBuckets();
 
     void setJsonNumBuckets(int value);
+
+    @Default.Integer(10)
+    int getJsonNumShards();
+
+    void setJsonNumShards(int value);
   }
 
-  public static void main(String[] args)
-      throws CannotProvideCoderException, NonDeterministicException {
-    final SinkOptions sinkOptions = PipelineOptionsFactory.fromArgs(args).as(SinkOptions.class);
-    final Pipeline pipeline = Pipeline.create(sinkOptions);
+  public static void main(String[] args) {
+    final SinkOptions options = PipelineOptionsFactory.fromArgs(args).as(SinkOptions.class);
+    final Pipeline pipeline = Pipeline.create(options);
+    write(pipeline);
+  }
 
-    final int numKeys = sinkOptions.getNumKeys();
-    final int maxRecordsPerKey = sinkOptions.getMaxRecordsPerKey();
-    final int avroNumBuckets = sinkOptions.getAvroNumBuckets();
-    final int avroNumShards = sinkOptions.getAvroNumShards();
+  static PipelineResult write(Pipeline pipeline) {
+    final SinkOptions options = pipeline.getOptions().as(SinkOptions.class);
+    final int numKeys = options.getNumKeys();
+    final int maxRecordsPerKey = options.getMaxRecordsPerKey();
 
     final PCollection<AvroGeneratedUser> avroData =
         pipeline
@@ -120,9 +108,6 @@ public class SinkBenchmark {
                                             .setFavoriteColor(String.format("color-%08d", j))
                                             .build())
                                 .collect(Collectors.toList())));
-
-    final int jsonNumBuckets = sinkOptions.getJsonNumBuckets();
-    final int jsonNumShards = sinkOptions.getJsonNumShards();
 
     final PCollection<TableRow> jsonData =
         pipeline
@@ -144,10 +129,10 @@ public class SinkBenchmark {
 
     final AvroSortedBucketIO.Write<CharSequence, AvroGeneratedUser> avroWrite =
         AvroSortedBucketIO.write(CharSequence.class, "name", AvroGeneratedUser.class)
-            .to(sinkOptions.getAvroDestination())
-            .withTempDirectory(sinkOptions.getTempLocation())
-            .withNumBuckets(avroNumBuckets)
-            .withNumShards(avroNumShards)
+            .to(options.getAvroPath())
+            .withTempDirectory(options.getTempLocation())
+            .withNumBuckets(options.getAvroNumBuckets())
+            .withNumShards(options.getJsonNumShards())
             .withHashType(BucketMetadata.HashType.MURMUR3_32)
             .withSuffix(".avro")
             .withCodec(CodecFactory.snappyCodec());
@@ -155,20 +140,15 @@ public class SinkBenchmark {
 
     final JsonSortedBucketIO.Write<String> jsonWrite =
         JsonSortedBucketIO.write(String.class, "user")
-            .to(sinkOptions.getJsonDestination())
-            .withTempDirectory(sinkOptions.getTempLocation())
-            .withNumBuckets(jsonNumBuckets)
-            .withNumShards(jsonNumShards)
+            .to(options.getJsonPath())
+            .withTempDirectory(options.getTempLocation())
+            .withNumBuckets(options.getJsonNumBuckets())
+            .withNumShards(options.getJsonNumShards())
             .withHashType(BucketMetadata.HashType.MURMUR3_32)
             .withSuffix(".json")
             .withCompression(Compression.UNCOMPRESSED);
     jsonData.apply(jsonWrite);
 
-    final long startTime = System.currentTimeMillis();
-    final State state = pipeline.run().waitUntilFinish();
-    System.out.println(
-        String.format(
-            "SinkBenchmark finished with state %s in %d ms",
-            state, System.currentTimeMillis() - startTime));
+    return pipeline.run();
   }
 }
