@@ -1,0 +1,10 @@
+org.apache.beam.sdk.values.Row
+org.apache.beam.sdk.schemas.Schema
+
+BeamSqlTable.buildIOReader
+BeamSqlTable.buildIOWriter
+
+# BigQuery
+- org.apache.beam.sdk.extensions.sql.meta.provider.bigquery.BigQueryTable
+- buildIOReader - reads whole table only, GenericRecord
+- buildIOWriter - writes TableRow
