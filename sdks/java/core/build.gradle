@@ -32,6 +32,7 @@ applyJavaNature(shadowClosure: {
 })
 applyAvroNature()
 applyAntlrNature()
+applyGrpcNature()
 
 generateGrammarSource {
   arguments += ["-visitor"]
@@ -68,6 +69,7 @@ dependencies {
   compile library.java.byte_buddy
   compile library.java.commons_compress
   compile library.java.commons_lang3
+  compile library.java.tensorflow_proto
   shadow library.java.jackson_core
   shadow library.java.jackson_annotations
   shadow library.java.jackson_databind
