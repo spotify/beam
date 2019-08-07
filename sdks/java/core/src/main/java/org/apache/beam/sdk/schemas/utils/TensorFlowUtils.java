@@ -18,9 +18,15 @@
 package org.apache.beam.sdk.schemas.utils;
 
 import org.apache.beam.sdk.schemas.Schema;
+import org.apache.beam.sdk.schemas.Schema.Field;
 import org.apache.beam.sdk.transforms.SerializableFunction;
 import org.apache.beam.sdk.values.Row;
+import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.base.Preconditions;
 import org.tensorflow.example.Example;
+import org.tensorflow.metadata.v0.Feature;
+import org.tensorflow.metadata.v0.FeatureType;
+import org.tensorflow.metadata.v0.FixedShape;
+import org.tensorflow.metadata.v0.ValueCount;
 
 /** Utility methods for TensorFlow related operations. */
 public class TensorFlowUtils {
@@ -29,12 +35,117 @@ public class TensorFlowUtils {
 
   /** Convert a Beam {@link Schema} to a TensorFlow {@link org.tensorflow.metadata.v0.Schema}. */
   public static org.tensorflow.metadata.v0.Schema toTfSchema(Schema schema) {
-    return org.tensorflow.metadata.v0.Schema.getDefaultInstance();
+    org.tensorflow.metadata.v0.Schema.Builder builder =
+        org.tensorflow.metadata.v0.Schema.newBuilder();
+    schema.getFields().stream().map(TensorFlowUtils::toFeature).forEach(builder::addFeature);
+    return builder.build();
   }
 
   /** Convert a TensorFlow {@link org.tensorflow.metadata.v0.Schema} to a Beam {@link Schema}. */
   public static Schema fromTfSchema(org.tensorflow.metadata.v0.Schema schema) {
-    return Schema.builder().build();
+    Schema.Builder builder = Schema.builder();
+    schema.getFeatureList().stream()
+        .map(TensorFlowUtils::toField)
+        .forEach(builder::addField);
+    // According to schema.proto, SparseFeature.{IndexFeature,ValueFeature} should be a reference to
+    // an existing feature in the schema.
+    return builder.build();
+  }
+
+  private static Feature toFeature(Field field) {
+    String name = field.getName();
+    Schema.FieldType fieldType = field.getType();
+    boolean isArray = fieldType.getTypeName() == Schema.TypeName.ARRAY;
+    boolean isNullable = fieldType.getNullable();
+
+    Feature.Builder builder = Feature.newBuilder().setName(name);
+    Schema.TypeName typeName = isArray
+        ? fieldType.getCollectionElementType().getTypeName()
+        : fieldType.getTypeName();
+
+    switch (typeName) {
+      case BYTES:
+        builder.setType(FeatureType.BYTES);
+        break;
+      case INT64:
+        builder.setType(FeatureType.INT);
+        break;
+      case FLOAT:
+        builder.setType(FeatureType.FLOAT);
+        break;
+      default:
+        throw new IllegalStateException(
+            String.format("Field type %s not supported for field %s", typeName, name));
+    }
+
+    Preconditions.checkState(!(isArray && isNullable),
+        String.format("Field %s is both array and nullable", name));
+
+    if (isNullable) {
+      // nullable
+      builder.setValueCount(ValueCount.newBuilder().setMin(0).setMax(1));
+    } else if (!isArray){
+      // required
+      builder.setValueCount(ValueCount.newBuilder().setMin(1).setMax(1));
+    }
+    // repeated, no-op
+    return builder.build();
+  }
+
+  private static Field toField(Feature feature) {
+    String name = feature.getName();
+    Schema.FieldType fieldType;
+
+    // Map FeatureType to those supported by TF.Example
+    // https://github.com/tensorflow/tensorflow/tree/master/tensorflow/core/example
+    switch (feature.getType()) {
+      case BYTES:
+        fieldType = Schema.FieldType.BYTES;
+        break;
+      case INT:
+        fieldType = Schema.FieldType.INT64;
+        break;
+      case FLOAT:
+        fieldType = Schema.FieldType.FLOAT;
+        break;
+      default:
+        throw new IllegalStateException("Feature type " + feature.getType() +
+            " not supported for feature " + name);
+    }
+
+
+    Field field = null;
+    switch (feature.getShapeTypeCase()) {
+      case SHAPE:
+        FixedShape shape = feature.getShape();
+        if (shape.getDimCount() == 1 && shape.getDim(0).getSize() == 1) {
+          // required
+          field = Field.of(name, fieldType);
+        } else {
+          // repeated
+          field = Field.of(name, Schema.FieldType.array(fieldType));
+        }
+        break;
+      case VALUE_COUNT:
+        ValueCount valueCount = feature.getValueCount();
+        if (valueCount.getMin() == 0 && valueCount.getMax() == 1) {
+          // nullable
+          field = Field.nullable(name, fieldType);
+        } else if (valueCount.getMin() == 1 && valueCount.getMax() == 1) {
+          // required
+          field = Field.of(name, fieldType);
+        } else {
+          // repeated
+          field = Field.of(name, Schema.FieldType.array(fieldType));
+        }
+        break;
+      case SHAPETYPE_NOT_SET:
+        // repeated
+        field = Field.of(name, Schema.FieldType.array(fieldType));
+        break;
+    }
+    // TODO: description
+    return field;
   }
 
   /** Convert a Beam {@link Row} to a TensorFlow {@link Example}. */
