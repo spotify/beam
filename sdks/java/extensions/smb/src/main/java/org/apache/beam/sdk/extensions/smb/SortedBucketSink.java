@@ -115,6 +115,20 @@ public class SortedBucketSink<K, V> extends PTransform<PCollection<V>, WriteResu
   public SortedBucketSink(
       BucketMetadata<K, V> bucketMetadata,
       ResourceId outputDirectory,
+      String filenameSuffix,
+      FileOperations<V> fileOperations) {
+    this(
+        bucketMetadata,
+        outputDirectory,
+        outputDirectory,
+        filenameSuffix,
+        fileOperations,
+        SortedBucketIO.DEFAULT_SORTER_MEMORY_MB);
+  }
+
+  public SortedBucketSink(
+      BucketMetadata<K, V> bucketMetadata,
+      ResourceId outputDirectory,
       ResourceId tempDirectory,
       String filenameSuffix,
       FileOperations<V> fileOperations,

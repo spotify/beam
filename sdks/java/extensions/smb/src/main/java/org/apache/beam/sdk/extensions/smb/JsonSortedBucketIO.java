@@ -262,18 +262,12 @@ public class JsonSortedBucketIO {
         throw new IllegalStateException(e);
       }
 
-      final ResourceId outputDirectory = getOutputDirectory();
-      ResourceId tempDirectory = getTempDirectory();
-      if (tempDirectory == null) {
-        tempDirectory = outputDirectory;
-      }
-
       final JsonFileOperations fileOperations = JsonFileOperations.of(getCompression());
       SortedBucketSink<K, TableRow> sink =
           new SortedBucketSink<>(
               metadata,
-              outputDirectory,
-              tempDirectory,
+              getOutputDirectory(),
+              getTempDirectory(),
               getFilenameSuffix(),
               fileOperations,
               getSorterMemoryMb());

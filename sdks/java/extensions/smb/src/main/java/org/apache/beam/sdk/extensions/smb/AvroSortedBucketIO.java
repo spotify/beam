@@ -308,12 +308,6 @@ public class AvroSortedBucketIO {
         throw new IllegalStateException(e);
       }
 
-      final ResourceId outputDirectory = getOutputDirectory();
-      ResourceId tempDirectory = getTempDirectory();
-      if (tempDirectory == null) {
-        tempDirectory = outputDirectory;
-      }
-
       @SuppressWarnings("unchecked")
       final AvroFileOperations<T> fileOperations =
           getRecordClass() == null
@@ -323,8 +317,8 @@ public class AvroSortedBucketIO {
       SortedBucketSink<K, T> sink =
           new SortedBucketSink<>(
               metadata,
-              outputDirectory,
-              tempDirectory,
+              getOutputDirectory(),
+              getTempDirectory(),
               getFilenameSuffix(),
               fileOperations,
               getSorterMemoryMb());

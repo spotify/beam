@@ -269,18 +269,12 @@ public class TensorFlowBucketIO {
         throw new IllegalStateException(e);
       }
 
-      final ResourceId outputDirectory = getOutputDirectory();
-      ResourceId tempDirectory = getTempDirectory();
-      if (tempDirectory == null) {
-        tempDirectory = outputDirectory;
-      }
-
       final TensorFlowFileOperations fileOperations = TensorFlowFileOperations.of(getCompression());
       SortedBucketSink<K, Example> sink =
           new SortedBucketSink<>(
               metadata,
-              outputDirectory,
-              tempDirectory,
+              getOutputDirectory(),
+              getTempDirectory(),
               getFilenameSuffix(),
               fileOperations,
               getSorterMemoryMb());
