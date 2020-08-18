@@ -153,12 +153,12 @@ dependencies {
   compile library.java.slf4j_api
   compile library.java.joda_time
   compile library.java.args4j
-  compile "org.apache.flink:flink-clients_2.11:$flink_version"
+  compile "org.apache.flink:flink-clients_2.12:$flink_version"
   compile "org.apache.flink:flink-core:$flink_version"
   compile "org.apache.flink:flink-metrics-core:$flink_version"
   compile "org.apache.flink:flink-java:$flink_version"
-  compile "org.apache.flink:flink-runtime_2.11:$flink_version"
-  compile "org.apache.flink:flink-streaming-java_2.11:$flink_version"
+  compile "org.apache.flink:flink-runtime_2.12:$flink_version"
+  compile "org.apache.flink:flink-streaming-java_2.12:$flink_version"
   testCompile project(path: ":sdks:java:core", configuration: "shadowTest")
   // FlinkStateInternalsTest extends abstract StateInternalsTest
   testCompile project(path: ":runners:core-java", configuration: "testRuntime")
@@ -170,15 +170,15 @@ dependencies {
   testCompile project(":sdks:java:io:google-cloud-platform")
   testCompile library.java.jackson_dataformat_yaml
   testCompile "org.apache.flink:flink-core:$flink_version:tests"
-  testCompile "org.apache.flink:flink-runtime_2.11:$flink_version:tests"
-  testCompile "org.apache.flink:flink-streaming-java_2.11:$flink_version:tests"
-  testCompile "org.apache.flink:flink-test-utils_2.11:$flink_version"
+  testCompile "org.apache.flink:flink-runtime_2.12:$flink_version:tests"
+  testCompile "org.apache.flink:flink-streaming-java_2.12:$flink_version:tests"
+  testCompile "org.apache.flink:flink-test-utils_2.12:$flink_version"
   testCompile project(":sdks:java:harness")
   testRuntimeOnly library.java.slf4j_simple
   validatesRunner project(path: ":sdks:java:core", configuration: "shadowTest")
   validatesRunner project(path: ":runners:core-java", configuration: "testRuntime")
   validatesRunner project(project.path)
-  miniCluster "org.apache.flink:flink-runtime-web_2.11:$flink_version"
+  miniCluster "org.apache.flink:flink-runtime-web_2.12:$flink_version"
 }
 
 class ValidatesRunnerConfig {
