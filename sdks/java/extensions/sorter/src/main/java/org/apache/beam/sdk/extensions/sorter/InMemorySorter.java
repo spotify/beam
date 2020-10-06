@@ -21,13 +21,18 @@ import static org.apache.beam.vendor.guava.v26_0_jre.com.google.common.base.Prec
 import static org.apache.beam.vendor.guava.v26_0_jre.com.google.common.base.Preconditions.checkState;
 
 import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.locks.ReentrantLock;
+import java.util.stream.Collectors;
+
 import org.apache.beam.sdk.values.KV;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.primitives.UnsignedBytes;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import javax.annotation.Nullable;
 
 /**
  * Sorts {@code <key, value>} pairs in memory. Based on the configured size of the memory buffer,
@@ -47,7 +52,8 @@ class InMemorySorter implements Sorter {
 
     /** Sets the size of the memory buffer in megabytes. */
     public void setMemoryMB(long memoryMB) {
-      checkArgument(memoryMB > 0, "memoryMB must be greater than zero");
+      checkArgument(memoryMB >= 0, "memoryMB must be greater than or equal to zero");
+      // 0 = auto memory management using `Coordinator`
       this.memoryMB = memoryMB;
     }
 
@@ -88,9 +94,13 @@ class InMemorySorter implements Sorter {
   /** The stored records to be sorted. */
   private final ArrayList<KV<byte[], byte[]>> records = new ArrayList<>();
 
+  @Nullable
+  private Semaphore semaphore;
+
   /** Private constructor. */
   private InMemorySorter(Options options) {
     maxBufferSize = options.getMemoryMB() * 1024L * 1024L;
+    semaphore = null;
   }
 
   /** Create a new sorter from provided options. */
@@ -106,8 +116,21 @@ class InMemorySorter implements Sorter {
   /** Adds the record is there is room and returns true. Otherwise returns false. */
   public boolean addIfRoom(KV<byte[], byte[]> record) {
     checkState(!sortCalled, "Records can only be added before sort()");
-
     long recordBytes = estimateRecordBytes(record);
+
+    // auto memory management using `Coordinator`, always add
+    if (maxBufferSize == 0) {
+      // already asked to free up memory, the caller should call `sort` next
+      if (semaphore != null) {
+        return false;
+      } else {
+        // acquire might block and wait for other sorters to free up memory
+        coordinator.acquire(this, recordBytes);
+        records.add(record);
+        return true;
+      }
+    }
+
     if (roomInBuffer(numBytes + recordBytes, records.size() + 1L)) {
       records.add(record);
       numBytes += recordBytes;
@@ -126,6 +149,14 @@ class InMemorySorter implements Sorter {
     Comparator<KV<byte[], byte[]>> kvComparator =
         (o1, o2) -> COMPARATOR.compare(o1.getKey(), o2.getKey());
     records.sort(kvComparator);
+
+    // unblock other sorters and free up memory
+    if (semaphore != null) {
+      semaphore.release();
+    }
+    if (maxBufferSize == 0) {
+      coordinator.release(this);
+    }
     return Collections.unmodifiableList(records);
   }
 
@@ -165,7 +196,7 @@ class InMemorySorter implements Sorter {
       return DEFAULT_BYTES_PER_WORD;
     }
 
-    Long bitsPerWord;
+    long bitsPerWord;
     try {
       bitsPerWord = Long.parseLong(bitsPerWordProperty);
     } catch (NumberFormatException e) {
@@ -178,5 +209,88 @@ class InMemorySorter implements Sorter {
     }
 
     return bitsPerWord / 8;
+  }
+
+  // called by the Coordinator to free up memory next time `addIfRoom` is called
+  private void free(Semaphore semaphore) {
+    this.semaphore = semaphore;
+  }
+
+  private final static Coordinator coordinator = new Coordinator();
+
+  static class Coordinator {
+
+    private static final double MIN_FREE_RAM_PCT = 0.05; // at least 5% heap free
+    private final Runtime rt = Runtime.getRuntime();
+    private final ConcurrentHashMap<InMemorySorter, Long> usage = new ConcurrentHashMap<>();
+    private final ReentrantLock mutex = new ReentrantLock();
+    private boolean oom = false;
+
+    public void acquire(InMemorySorter sorter, long numBytes) {
+      // update sorter memory usage
+      usage.compute(sorter, (k, v) -> v == null ? numBytes : v + numBytes);
+
+      if (oom || outOfMemory()) {
+        oom = true;
+
+
+        // global mutex, only 1 thread wins and starts work
+        mutex.lock();
+        if (oom || outOfMemory()) {
+          // acquired lock, still OOM, winning, do work
+
+          // free up minimal required % x 2
+          long bytesToFree = (long) (rt.totalMemory() * MIN_FREE_RAM_PCT * 2) - rt.freeMemory();
+          List<Map.Entry<InMemorySorter, Long>> entires = usage.entrySet().stream()
+              .sorted(Map.Entry.comparingByValue())
+              .collect(Collectors.toList());
+
+          // ask sorters to free up RAM, starting with the smallest ones
+          List<InMemorySorter> toFree = new ArrayList<>();
+          for (Map.Entry<InMemorySorter, Long> e : entires) {
+            if (e.getKey() == sorter) {
+              // do not free calling sorter
+              continue;
+            }
+            toFree.add(e.getKey());
+            bytesToFree -= e.getValue();
+            if (bytesToFree <= 0) {
+              break;
+            }
+          }
+
+          int n = toFree.size();
+          Semaphore semaphore = new Semaphore(n);
+          try {
+            // acquire all, to be freed by individual sorters
+            semaphore.acquire(n);
+            // ask sorters to free
+            for (InMemorySorter s : toFree) {
+              s.free(semaphore);
+            }
+            // this will unblock once all sorters have freed up memory
+            semaphore.acquire(n);
+          } catch (InterruptedException e) {
+            LOG.error("Failed to acquire semaphore", e);
+            throw new RuntimeException(e);
+          }
+        }
+
+        // all other thread loses and unlock right away
+        mutex.unlock();
+        oom = false;
+      }
+    }
+
+    public synchronized void release(InMemorySorter sorter) {
+      usage.remove(sorter);
+    }
+
+
+    private boolean outOfMemory() {
+      double free = (double) rt.freeMemory();
+      double total = (double) rt.totalMemory();
+      return free / total < MIN_FREE_RAM_PCT;
+    }
   }
 }
