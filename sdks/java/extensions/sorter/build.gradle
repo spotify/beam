@@ -17,6 +17,14 @@
  */
 
 plugins { id 'org.apache.beam.module' }
+plugins { id "application" }
+apply plugin : "java"
+ext {
+  javaMainClass = "Test"
+}
+application {
+  mainClassName = javaMainClass
+}
 applyJavaNature(
   ignoreRawtypeErrors:true,
   automaticModuleName: 'org.apache.beam.sdk.extensions.sorter')
